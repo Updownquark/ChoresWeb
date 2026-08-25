@@ -1,0 +1,38 @@
+logging:
+  level:
+    org:
+      springframework:
+        security: DEBUG
+        web: DEBUG
+        beans:
+          factory: info
+
+spring:
+  config:
+    import: "optional:file:.env[.properties]"
+  application:
+    name: ChoresWeb
+  datasource:
+    url: jdbc:${DB_FLAVOR}://${DB_SERVER}/${DB_NAME}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: true
+  liquibase:
+    enabled: true
+    change-log: classpath:db/changelog/db.changelog-master.xml
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: https://accounts.google.com
+  devtools:
+    restart:
+      enabled: false
+
+chores:
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS}
+  whitelist: ${DEV_APP_DATA}/whitelist.txt

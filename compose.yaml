@@ -1,0 +1,13 @@
+services:
+  chores-db:
+    image: postgres:16
+    container_name: ${DB_HOST}
+    restart: always
+    environment:
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USERNAME}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - ${DEV_APP_DATA}/chores_db:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"

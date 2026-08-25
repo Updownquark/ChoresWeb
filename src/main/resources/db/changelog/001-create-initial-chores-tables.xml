@@ -1,0 +1,154 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                      http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.1.xsd">
+
+	<changeSet id="1" author="Updownquark">
+		<createTable tableName="app_user">
+			<column name="id" type="BIGINT" autoIncrement="true">
+				<constraints primaryKey="true" nullable="false"/>
+			</column>
+			<column name="email" type="VARCHAR(100)">
+				<constraints nullable="false" unique="true" />
+			</column>
+			<column name="last_active" type="TIMESTAMP" />
+		</createTable>
+		<createIndex indexName="users_by_email" tableName="app_user" unique="true">
+			<column name="email" />
+		</createIndex>
+		
+		<createTable tableName="organization">
+			<column name="id" type="BIGINT" autoIncrement="true">
+				<constraints primaryKey="true" nullable="false"/>
+			</column>
+			<column name="name" type="VARCHAR(200)">
+				<constraints nullable="false" unique="true" />
+			</column>
+			<column name="last_active" type="TIMESTAMP" />
+		</createTable>
+		<createIndex indexName="orgs_by_org" tableName="organization" unique="true">
+			<column name="name" />
+		</createIndex>
+		
+		<createTable tableName="membership">
+			<column name="organization" type="BIGINT">
+				<constraints references="organization(id)" foreignKeyName="membership_org" nullable="false" />
+			</column>
+			<column name="member" type="BIGINT">
+				<constraints references="app_user(id)" foreignKeyName="membership_member" nullable="false" />
+			</column>
+			<column name="manager" type="BOOLEAN" />
+			<column name="worker" type="BOOLEAN" />
+			<column name="level" type="INT" />
+			<column name="labels" type="VARCHAR(120)" />
+			<column name="points" type="BIGINT" />
+			<column name="last_active" type="TIMESTAMP" />
+		</createTable>
+		<addPrimaryKey tableName="membership" columnNames="organization,member" constraintName="membership_pk" />
+		<createIndex indexName="members_by_org" tableName="membership" unique="true">
+			<column name="organization" />
+			<column name="worker" />
+		</createIndex>
+		
+		<createTable tableName="job">
+			<column name="id" type="BIGINT" autoIncrement="true">
+				<constraints primaryKey="true" nullable="false" />
+			</column>
+			<column name="organization" type="BIGINT">
+				<constraints references="organization(id)" foreignKeyName="job_org" nullable="false" />
+			</column>
+			<column name="name" type="VARCHAR(60)">
+				<constraints nullable="false" />
+			</column>
+			<column name="value" type="INT" />
+			<column name="min_level" type="INT" />
+			<column name="max_level" type="INT" />
+			<column name="inclusion_labels" type="VARCHAR(120)" />
+			<column name="exclusion_labels" type="VARCHAR(120)" />
+			<column name="priority" type="INT" />
+			<column name="boolean" type="BOOLEAN" />
+			<column name="active" type="BOOLEAN" />
+			<column name="last_done" type="TIMESTAMP" />
+		</createTable>
+		<createIndex indexName="jobs_by_org" tableName="job" unique="true">
+			<column name="organization" />
+			<column name="name" />
+		</createIndex>
+		
+		<createTable tableName="assignment">
+			<column name="job" type="BIGINT">
+				<constraints references="job(id)" foreignKeyName="assignment_job" nullable="false" />
+			</column>
+			<column name="worker" type="BIGINT">
+				<constraints references="app_user(id)" foreignKeyName="assignment_worker" nullable="false" />
+			</column>
+			<column name="organization" type="BIGINT">
+				<constraints references="organization(id)" foreignKeyName="job_org" nullable="false" />
+			</column>
+			<column name="completed" type="INT" />
+			<column name="notes" type="VARCHAR(100)" />
+		</createTable>
+		<addPrimaryKey tableName="assignment" columnNames="job,worker" constraintName="work_pk" />
+		<createIndex indexName="assignments_by_org" tableName="assignment">
+			<column name="organization" />
+		</createIndex>
+		
+		<createTable tableName="point_resource">
+			<column name="id" type="BIGINT" autoIncrement="true">
+				<constraints primaryKey="true" nullable="false" />
+			</column>
+			<column name="organization" type="BIGINT">
+				<constraints references="organization(id)" foreignKeyName="job_org" nullable="false" />
+			</column>
+			<column name="name" type="VARCHAR(60)">
+				<constraints nullable="false" />
+			</column>
+			<column name="rate" type="REAL" />
+			<column name="unit" type="VARCHAR(16)" />
+		</createTable>
+		<createIndex indexName="resources_by_org" tableName="point_resource" unique="true">
+			<column name="organization" />
+			<column name="name" />
+		</createIndex>
+		
+		<createTable tableName="point_change_record">
+			<column name="id" type="BIGINT">
+				<constraints primaryKey="true" nullable="false" />
+			</column>
+			<column name="organization" type="BIGINT">
+				<constraints references="organization(id)" foreignKeyName="point_change_org" nullable="false" />
+			</column>
+			<column name="worker" type="BIGINT">
+				<constraints references="app_user(id)" foreignKeyName="point_change_worker" nullable="false" />
+			</column>
+			<column name="change_type" type="VARCHAR(16)">
+				<constraints nullable="false" />
+			</column>
+			<column name="change_source_id" type="BIGINT">
+				<constraints nullable="false" />
+			</column>
+			<column name="time" type="TIMESTAMP">
+				<constraints nullable="false" />
+			</column>
+			<column name="change_source_name" type="VARCHAR(60)" />
+			<column name="before_points" type="BIGINT" />
+			<column name="point_change" type="INT" />
+			<column name="quantity" type="REAL" />
+			<column name="value_or_rate" type="REAL" />
+			<column name="notes" type="VARCHAR(100)" />
+		</createTable>
+		<createIndex indexName="point_changes_by_source" tableName="point_change_record">
+			<column name="organization" />
+			<column name="change_type" />
+			<column name="change_source_id" />
+			<column name="time" />
+		</createIndex>
+		<createIndex indexName="work_by_worker" tableName="point_change_record">
+			<column name="organization" />
+			<column name="worker" />
+			<column name="time" />
+		</createIndex>
+	</changeSet>
+</databaseChangeLog>
