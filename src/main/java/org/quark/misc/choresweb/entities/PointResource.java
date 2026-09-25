@@ -44,11 +44,16 @@ public class PointResource {
 	@Setter
 	private String unit;
 
-	private PointResource() {
+	protected PointResource() {
 	}
 
 	public PointResource(Organization org, String name) {
 		this.organization = org;
 		this.name = name;
+	}
+
+	@Override
+	public String toString() {
+		return name;
 	}
 }

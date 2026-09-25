@@ -36,7 +36,7 @@ public class Job {
 
 	@Column(length = 60, nullable = false)
 	@Getter
-	@Setter(value = AccessLevel.PRIVATE)
+	@Setter
 	private String name;
 
 	@Getter
@@ -72,12 +72,16 @@ public class Job {
 	private Instant lastDone;
 
 	/** Hibernate constructor */
-	@SuppressWarnings("unused")
-	private Job() {
+	protected Job() {
 	}
 
 	public Job(Organization org, String name) {
 		this.organization = org;
 		this.name = name;
+	}
+
+	@Override
+	public String toString() {
+		return name;
 	}
 }

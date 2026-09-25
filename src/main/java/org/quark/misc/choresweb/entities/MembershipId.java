@@ -17,7 +17,7 @@ public class MembershipId {
 	@Getter
 	private User member;
 
-	private MembershipId() {}
+	protected MembershipId() {}
 
 	public MembershipId(Organization organization, User member) {
 		this.organization = organization;
@@ -37,5 +37,10 @@ public class MembershipId {
 			return false;
 		MembershipId other = (MembershipId) o;
 		return organization.equals(other.organization) && member.equals(other.member);
+	}
+
+	@Override
+	public String toString() {
+		return member + ":" + organization;
 	}
 }

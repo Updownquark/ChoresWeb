@@ -39,6 +39,9 @@
 			<column name="member" type="BIGINT">
 				<constraints references="app_user(id)" foreignKeyName="membership_member" nullable="false" />
 			</column>
+			<column name="name" type="VARCHAR(100)">
+				<constraints nullable="false" />
+			</column>
 			<column name="manager" type="BOOLEAN" />
 			<column name="worker" type="BOOLEAN" />
 			<column name="level" type="INT" />
@@ -49,7 +52,7 @@
 		<addPrimaryKey tableName="membership" columnNames="organization,member" constraintName="membership_pk" />
 		<createIndex indexName="members_by_org" tableName="membership" unique="true">
 			<column name="organization" />
-			<column name="worker" />
+			<column name="member" />
 		</createIndex>
 		
 		<createTable tableName="job">
@@ -114,7 +117,7 @@
 		</createIndex>
 		
 		<createTable tableName="point_change_record">
-			<column name="id" type="BIGINT">
+			<column name="id" type="BIGINT" autoIncrement="true">
 				<constraints primaryKey="true" nullable="false" />
 			</column>
 			<column name="organization" type="BIGINT">

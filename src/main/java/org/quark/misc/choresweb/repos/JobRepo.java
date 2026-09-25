@@ -16,4 +16,6 @@ public interface JobRepo extends JpaRepository<Job, Long> {
 	int getByName(@Param("name") String name);
 
 	void deleteByOrganization(Organization organization);
+
+	public boolean existsByOrganizationIdAndName(long orgId, String name);
 }

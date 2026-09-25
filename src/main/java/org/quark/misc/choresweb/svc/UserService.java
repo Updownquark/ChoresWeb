@@ -12,6 +12,7 @@ import java.util.Set;
 
 import org.qommons.TimeUtils;
 import org.qommons.io.NativeFileSource;
+import org.quark.misc.choresweb.api.ProtoMembership;
 import org.quark.misc.choresweb.entities.Membership;
 import org.quark.misc.choresweb.entities.PointChangeRecord;
 import org.quark.misc.choresweb.entities.User;
@@ -19,6 +20,7 @@ import org.quark.misc.choresweb.repos.AssignmentRepo;
 import org.quark.misc.choresweb.repos.MembershipRepo;
 import org.quark.misc.choresweb.repos.PointChangeRecordRepo;
 import org.quark.misc.choresweb.repos.UserRepo;
+import org.quark.misc.choresweb.util.EntityChangeSet;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
@@ -38,6 +40,8 @@ public class UserService {
 	private final MembershipRepo theMembershipRepo;
 	private final AssignmentRepo theAssnRepo;
 	private final PointChangeRecordRepo thePointChangeRepo;
+
+	private final EntityChangeSet<BinaryId, OrgGroupedMember> theChanges = new EntityChangeSet<>(member -> member.id, 15000);
 
 	public UserService(UserRepo userRepo, MembershipRepo membershipRepo, AssignmentRepo assnRepo, PointChangeRecordRepo pointChangeRepo) {
 		theUserRepo = userRepo;
@@ -62,14 +66,20 @@ public class UserService {
 	@Transactional
 	public void userActive(User user) {
 		Instant now = Instant.now();
-		if (TimeUtils.between(user.getLastActive(), now).getSeconds() > 30) {
+		if (user.getLastActive() == null || TimeUtils.between(user.getLastActive(), now).getSeconds() > 30) {
 			user.setLastActive(now);
 			theUserRepo.save(user);
 		}
 	}
 
-	@Transactional
+	@Transactional(readOnly = true)
 	public User getUser(String email) {
+		User found = theUserRepo.getByEmail(email);
+		return found;
+	}
+
+	@Transactional
+	public User getUserCreateIfAdmin(String email) {
 		User found = theUserRepo.getByEmail(email);
 		if (found == null && canCreateOrgs(email)) {
 			found = new User(email);
@@ -93,7 +103,7 @@ public class UserService {
 	}
 
 	@Transactional(readOnly = true)
-	public List<PointChangeRecord> getWorkerHistory(Membership me, Membership target, int pageNumber, int pageSize) {
+	public List<PointChangeRecord.FullPcrDto> getWorkerHistory(Membership me, Membership target, int pageNumber, int pageSize) {
 		if (me.getId().getOrganization().getId() != target.getId().getOrganization().getId())
 			throw new UnsupportedOperationException("You must sign in to the organization you want to view");
 		return thePointChangeRepo.getWorkerHistory(target, PageRequest.of(pageNumber, pageSize)).getContent();
@@ -102,6 +112,13 @@ public class UserService {
 	@Transactional(readOnly = true)
 	public List<Membership> getMembers(Membership me) {
 		return theMembershipRepo.getMembership(me.getId().getOrganization());
+	}
+
+	@Transactional(readOnly = true)
+	public EntityChangeSet.ChangeSet<ProtoMembership> getApiMembers(Membership me) {
+		return theChanges.getValues(() -> theMembershipRepo.getMembership(me.getId().getOrganization()).stream()//
+			.map(member -> ProtoMembership.of(member, true, true))//
+			.toList());
 	}
 
 	@Transactional
@@ -117,6 +134,7 @@ public class UserService {
 		membership.setWorker(true);
 		membership.setLastActive(Instant.now());
 		theMembershipRepo.save(membership);
+		theChanges.changed(new OrgGroupedMember(membership.getId().getOrganization().getId(), ProtoMembership.of(membership, false, true)));
 		return membership;
 	}
 
@@ -124,7 +142,7 @@ public class UserService {
 	public Membership modifyWorker(Membership me, ModifyWorkerCommand command) {
 		if (!me.isManager())
 			throw new UnsupportedOperationException("You do not have permission to modify members in this organization");
-		Membership member = theMembershipRepo.getMembership(command.user(), me.getId().getOrganization().getId());
+		Membership member = theMembershipRepo.getMembership(command.userId(), me.getId().getOrganization().getId());
 		if (member == null)
 			throw new NoSuchElementException("No such member");
 
@@ -138,8 +156,10 @@ public class UserService {
 			}
 		}
 
-		if (changed)
+		if (changed) {
 			theMembershipRepo.save(member);
+			theChanges.changed(new OrgGroupedMember(member.getId().getOrganization().getId(), ProtoMembership.of(member, false, true)));
+		}
 		return member;
 	}
 
@@ -155,5 +175,26 @@ public class UserService {
 		thePointChangeRepo.deleteForMember(target);
 		theAssnRepo.deleteForMember(target);
 		theMembershipRepo.delete(target);
+		theChanges.changed(new OrgGroupedMember(target.getId().getOrganization().getId(), ProtoMembership.deleted(target, false, true)));
+	}
+
+	public void memberUpdated(Membership member) {
+		theChanges.changed(new OrgGroupedMember(member.getId().getOrganization().getId(), ProtoMembership.of(member, false, true)));
+	}
+
+	public EntityChangeSet.ChangeSet<ProtoMembership> getChanges(long orgId, long lastKnownChange) {
+		return theChanges.getChanges(lastKnownChange, member -> member.orgId == orgId, member -> member.member);
+	}
+
+	static class OrgGroupedMember {
+		final long orgId;
+		final BinaryId id;
+		final ProtoMembership member;
+
+		OrgGroupedMember(long orgId, ProtoMembership member) {
+			this.orgId = orgId;
+			this.id = new BinaryId(orgId, member.member().id());
+			this.member = member;
+		}
 	}
 }

@@ -17,7 +17,7 @@ public class AssignmentId {
 	@Getter
 	private User worker;
 
-	private AssignmentId() {
+	protected AssignmentId() {
 	}
 
 	public AssignmentId(Job job, User worker) {

@@ -34,7 +34,7 @@ public class Assignment {
 	@Setter
 	private String notes;
 
-	private Assignment() {
+	protected Assignment() {
 	}
 
 	public Assignment(Job job, User worker) {

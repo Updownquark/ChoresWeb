@@ -8,6 +8,8 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
@@ -20,6 +22,7 @@ import lombok.Setter;
 @Table(name = "point_change_record")
 public class PointChangeRecord {
 	@Id
+	@GeneratedValue(strategy = GenerationType.IDENTITY)
 	@Getter
 	private long id;
 
@@ -76,7 +79,21 @@ public class PointChangeRecord {
 	@Setter
 	private String notes;
 
-	private PointChangeRecord() {}
+	protected PointChangeRecord() {}
+
+	public PointChangeRecord(Membership worker, Instant time, PointChangeType changeType, long changeSourceId, String changeSourceName,
+		long beforePoints, int pointChange, double quantity, double valueOrRate) {
+		this.organization = worker.getId().getOrganization();
+		this.worker = worker.getId().getMember();
+		this.time = time;
+		this.changeType = changeType;
+		this.changeSourceId = changeSourceId;
+		this.changeSourceName = changeSourceName;
+		this.beforePoints = beforePoints;
+		this.pointChange = pointChange;
+		this.quantity = quantity;
+		this.valueOrRate = valueOrRate;
+	}
 
 	public PointChangeRecord(Job job, Membership worker, Instant time, int points) {
 		organization = job.getOrganization();
@@ -102,5 +119,71 @@ public class PointChangeRecord {
 		this.quantity = quantity;
 		valueOrRate = resource.getRate();
 		pointChange = (int) Math.round(quantity * valueOrRate);
+	}
+
+	@Override
+	public String toString() {
+		return worker + " " + changeType + " " + changeSourceName + " (" + pointChange + ")";
+	}
+
+	public static record FullPcrDto(long id, long workerId, PointChangeType changeType, long changeSourceId, Instant time,
+		String changeSourceName, long beforePoints, int pointChange, double quantity, double valueOrRate) {
+		public long id() {
+			return id;
+		}
+
+		public long workerId() {
+			return workerId;
+		}
+
+		public PointChangeType changeType() {
+			return changeType;
+		}
+
+		public long changeSourceId() {
+			return changeSourceId;
+		}
+
+		public Instant time() {
+			return time;
+		}
+
+		public String changeSourceName() {
+			return changeSourceName;
+		}
+
+		public long beforePoints() {
+			return beforePoints;
+		}
+
+		public int pointChange() {
+			return pointChange;
+		}
+
+		public double quantity() {
+			return quantity;
+		}
+
+		public double valueOrRate() {
+			return valueOrRate;
+		}
+	}
+
+	public static record PcrKeyDto(long workerId, PointChangeType changeType, long changeSourceId, Instant time) {
+		public long workerId() {
+			return workerId;
+		}
+
+		public PointChangeType changeType() {
+			return changeType;
+		}
+
+		public long changeSourceId() {
+			return changeSourceId;
+		}
+
+		public Instant time() {
+			return time;
+		}
 	}
 }

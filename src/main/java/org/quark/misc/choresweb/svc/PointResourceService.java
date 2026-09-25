@@ -6,12 +6,14 @@ import java.util.NoSuchElementException;
 import java.util.function.Predicate;
 
 import org.qommons.StringUtils;
+import org.quark.misc.choresweb.api.ProtoPointResource;
 import org.quark.misc.choresweb.entities.Membership;
 import org.quark.misc.choresweb.entities.Organization;
 import org.quark.misc.choresweb.entities.PointChangeRecord;
 import org.quark.misc.choresweb.entities.PointResource;
 import org.quark.misc.choresweb.repos.PointChangeRecordRepo;
 import org.quark.misc.choresweb.repos.PointResourceRepo;
+import org.quark.misc.choresweb.util.EntityChangeSet;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -21,10 +23,14 @@ import jakarta.persistence.EntityNotFoundException;
 public class PointResourceService {
 	private final PointResourceRepo theResourceRepo;
 	private final PointChangeRecordRepo thePointChangeRepo;
+	private final UserService theUserService;
 
-	public PointResourceService(PointResourceRepo resourceRepo, PointChangeRecordRepo pointChangeRepo) {
+	private final EntityChangeSet<Long, OrgGroupedResource> theChanges = new EntityChangeSet<>(rsrc -> rsrc.resource.id(), 15000);
+
+	public PointResourceService(PointResourceRepo resourceRepo, PointChangeRecordRepo pointChangeRepo, UserService userService) {
 		theResourceRepo = resourceRepo;
 		thePointChangeRepo = pointChangeRepo;
+		theUserService = userService;
 	}
 
 	@Transactional(readOnly = true)
@@ -52,6 +58,7 @@ public class PointResourceService {
 		String name = StringUtils.getNewItemName(n -> theResourceRepo.getByName(n) > 0, "A Resource", StringUtils.SIMPLE_DUPLICATES);
 		PointResource resource = new PointResource(member.getId().getOrganization(), name);
 		theResourceRepo.save(resource);
+		theChanges.changed(new OrgGroupedResource(resource));
 		return resource;
 	}
 
@@ -67,8 +74,10 @@ public class PointResourceService {
 		}
 		if (resource == null || resource.getOrganization().getId() != member.getId().getOrganization().getId())
 			throw new NoSuchElementException();
-		if (modify.test(resource))
+		if (modify.test(resource)) {
 			theResourceRepo.save(resource);
+			theChanges.changed(new OrgGroupedResource(resource));
+		}
 	}
 
 	@Transactional
@@ -84,6 +93,7 @@ public class PointResourceService {
 		if (resource == null || resource.getOrganization().getId() != member.getId().getOrganization().getId())
 			throw new NoSuchElementException();
 		theResourceRepo.delete(resource);
+		theChanges.changed(OrgGroupedResource.delete(resource));
 	}
 
 	@Transactional
@@ -91,6 +101,30 @@ public class PointResourceService {
 		PointChangeRecord record = new PointChangeRecord(resource, worker, Instant.now(), amount);
 		thePointChangeRepo.save(record);
 		worker.setPoints(record.getBeforePoints() + record.getPointChange());
+		theUserService.memberUpdated(worker);
 		return record;
+	}
+
+	public void resourceUpdated(PointResource rsrc) {
+		theChanges.changed(new OrgGroupedResource(rsrc));
+	}
+
+	static class OrgGroupedResource {
+		final long orgId;
+		final ProtoPointResource resource;
+
+		OrgGroupedResource(long orgId, ProtoPointResource resource) {
+			this.orgId = orgId;
+			this.resource = resource;
+		}
+
+		OrgGroupedResource(PointResource resource) {
+			orgId = resource.getOrganization().getId();
+			this.resource = ProtoPointResource.of(resource);
+		}
+
+		static OrgGroupedResource delete(PointResource resource) {
+			return new OrgGroupedResource(resource.getOrganization().getId(), ProtoPointResource.deleted(resource));
+		}
 	}
 }

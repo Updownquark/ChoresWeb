@@ -21,6 +21,11 @@ public class Membership {
 	@Getter
 	private MembershipId id;
 
+	@Column(length = 100, nullable = false)
+	@Getter
+	@Setter
+	private String name;
+
 	@Getter
 	@Setter
 	private boolean manager;
@@ -47,10 +52,23 @@ public class Membership {
 	private Instant lastActive;
 
 	/** Hibernate constructor */
-	private Membership() {
+	protected Membership() {
 	}
 
 	public Membership(Organization org, User member) {
 		id = new MembershipId(org, member);
+	}
+
+	@Override
+	public String toString() {
+		String str = name + "(" + id.toString();
+		if (manager)
+			str += ", manager";
+		if (worker)
+			str += ", worker";
+		str += ")";
+		if(labels!=null && labels.length()>0)
+			str+="["+labels+"]";
+		return str;
 	}
 }

@@ -59,15 +59,16 @@ public class OrganizationService {
 	}
 
 	@Transactional
-	public Membership addOrganization(String userEmail, String name) {
+	public Membership addOrganization(String userEmail) {
 		if (!theUserSvc.canCreateOrgs(userEmail))
 			throw new UnsupportedOperationException("You do not have permission to create organizations");
-		String newName = StringUtils.getNewItemName(n -> theOrgRepo.getByName(name) > 0, name, StringUtils.SIMPLE_DUPLICATES);
+		String newName = StringUtils.getNewItemName(n -> theOrgRepo.getByName(n) > 0, "Org", StringUtils.SIMPLE_DUPLICATES);
 		Organization org = new Organization(newName);
 		theOrgRepo.save(org);
 		User user = theUserSvc.getOrCreateUser(userEmail);
 		theUserSvc.userActive(user);
 		Membership membership = new Membership(org, user);
+		membership.setName(userEmail);
 		membership.setManager(true);
 		membership.setLastActive(Instant.now());
 		theMembershipRepo.save(membership);

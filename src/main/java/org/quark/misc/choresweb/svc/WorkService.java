@@ -3,16 +3,18 @@ package org.quark.misc.choresweb.svc;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
+import java.util.Set;
 import java.util.function.Predicate;
 
+import org.quark.misc.choresweb.api.ProtoAssignment;
 import org.quark.misc.choresweb.entities.Assignment;
 import org.quark.misc.choresweb.entities.Job;
 import org.quark.misc.choresweb.entities.Membership;
 import org.quark.misc.choresweb.entities.MembershipId;
-import org.quark.misc.choresweb.entities.Organization;
 import org.quark.misc.choresweb.entities.PointChangeRecord;
 import org.quark.misc.choresweb.entities.User;
 import org.quark.misc.choresweb.repos.AssignmentRepo;
@@ -20,6 +22,7 @@ import org.quark.misc.choresweb.repos.JobRepo;
 import org.quark.misc.choresweb.repos.MembershipRepo;
 import org.quark.misc.choresweb.repos.PointChangeRecordRepo;
 import org.quark.misc.choresweb.repos.UserRepo;
+import org.quark.misc.choresweb.util.EntityChangeSet;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -31,20 +34,33 @@ public class WorkService {
 	private final AssignmentRepo theAssnRepo;
 	private final PointChangeRecordRepo thePointChangeRepo;
 	private final UserRepo theUserRepo;
+	private final UserService theUserService;
+	private final JobService theJobService;
 	private final MembershipRepo theMembershipRepo;
 
+	private final EntityChangeSet<BinaryId, OrgGroupedWork> theChanges = new EntityChangeSet<>(work -> work.id, 15000);
+
 	WorkService(JobRepo jobRepo, AssignmentRepo assnRepo, PointChangeRecordRepo pointChangeRepo, UserRepo userRepo,
-		MembershipRepo membershipRepo) {
+		UserService userService, JobService jobService, MembershipRepo membershipRepo) {
 		theJobRepo = jobRepo;
 		theAssnRepo = assnRepo;
 		thePointChangeRepo = pointChangeRepo;
 		theUserRepo = userRepo;
+		theUserService = userService;
+		theJobService = jobService;
 		theMembershipRepo = membershipRepo;
 	}
 
 	@Transactional(readOnly = true)
-	public List<Assignment> getAssignments(Membership me, Organization org) {
-		return theAssnRepo.getAssignments(org);
+	public List<Assignment> getAssignments(Membership me) {
+		return theAssnRepo.getAssignments(me.getId().getOrganization());
+	}
+
+	@Transactional(readOnly = true)
+	public EntityChangeSet.ChangeSet<ProtoAssignment> getApiAssignments(Membership me) {
+		return theChanges.getValues(() -> theAssnRepo.getAssignments(me.getId().getOrganization()).stream()//
+			.map(ProtoAssignment::of)//
+			.toList());
 	}
 
 	@Transactional
@@ -61,7 +77,7 @@ public class WorkService {
 
 		Job job;
 		try {
-			job = theJobRepo.getReferenceById(userId);
+			job = theJobRepo.getReferenceById(jobId);
 		} catch (EntityNotFoundException e) {
 			throw new NoSuchElementException("Job with ID " + jobId + " does not exist or is invisible");
 		}
@@ -70,10 +86,19 @@ public class WorkService {
 
 		Assignment assn = theAssnRepo.getByJobAndWorker(job, user);
 		boolean newAssn = assn == null;
-		if (assn == null)
+		if (newAssn)
 			assn = new Assignment(job, user);
-		if (modify.test(assn) || newAssn)
+		if (modify.test(assn) || newAssn) {
+			if (assn.getCompleted() == 0 && assn.getNotes() == null) {
+				if (!newAssn) {
+					theAssnRepo.delete(assn);
+					theChanges.changed(new OrgGroupedWork(job.getOrganization().getId(), ProtoAssignment.deleted(userId, jobId)));
+				}
+				return null;
+			}
 			theAssnRepo.save(assn);
+			theChanges.changed(new OrgGroupedWork(job.getOrganization().getId(), ProtoAssignment.of(assn)));
+		}
 		return assn;
 	}
 
@@ -99,6 +124,7 @@ public class WorkService {
 			throw new NoSuchElementException("Job with ID " + jobId + " does not exist or is invisible");
 
 		theAssnRepo.deleteByJobAndWorker(job, user);
+		theChanges.changed(new OrgGroupedWork(job.getOrganization().getId(), ProtoAssignment.deleted(userId, jobId)));
 	}
 
 	@Transactional
@@ -110,6 +136,7 @@ public class WorkService {
 			return;
 		Instant now = Instant.now();
 		Map<Long, Membership> members = new HashMap<>();
+		Set<Job> jobs = new HashSet<>();
 		List<PointChangeRecord> records = new ArrayList<>();
 		for (Assignment assn : assignments) {
 			if (assn.getCompleted() == 0 && (assn.getNotes() == null || assn.getNotes().isBlank()))
@@ -123,9 +150,27 @@ public class WorkService {
 			PointChangeRecord record = new PointChangeRecord(assn.getId().getJob(), member, now, assn.getCompleted());
 			record.setNotes(assn.getNotes());
 			records.add(record);
+			theChanges.changed(new OrgGroupedWork(me.getId().getOrganization().getId(), ProtoAssignment.of(assn)));
+			if (jobs.add(assn.getId().getJob()))
+				assn.getId().getJob().setLastDone(now);
 		}
 		thePointChangeRepo.saveAll(records);
 		theMembershipRepo.saveAll(members.values());
+		theJobRepo.saveAll(jobs);
+		theAssnRepo.deleteAll(assignments);
+		for (Membership member : members.values())
+			theUserService.memberUpdated(member);
+		for (Job job : jobs)
+			theJobService.jobUpdated(job);
+	}
+
+	@Transactional
+	public void clearAssignments(Membership me) {
+		if (!me.isManager())
+			throw new UnsupportedOperationException("You do not have permission to commit assignments for this organization");
+		List<Assignment> assignments = theAssnRepo.getAssignments(me.getId().getOrganization());
+		if (assignments.isEmpty())
+			return;
 		theAssnRepo.deleteAll(assignments);
 	}
 
@@ -160,13 +205,14 @@ public class WorkService {
 		Instant now = Instant.now();
 		PointChangeRecord record = new PointChangeRecord(job, member, now, points);
 		record.setNotes(notes);
-		;
 		thePointChangeRepo.save(record);
 		member.setLastActive(now);
 		member.setPoints(record.getBeforePoints() + record.getPointChange());
 		theMembershipRepo.save(member);
+		theUserService.memberUpdated(member);
 		job.setLastDone(now);
 		theJobRepo.save(job);
+		theJobService.jobUpdated(job);
 		return record;
 	}
 
@@ -193,6 +239,27 @@ public class WorkService {
 		}
 		member.setPoints(member.getPoints() - record.getPointChange());
 		theMembershipRepo.save(member);
+		theUserService.memberUpdated(member);
 		thePointChangeRepo.delete(record);
+	}
+
+	public void assignmentUpdated(Assignment assn) {
+		theChanges.changed(new OrgGroupedWork(assn.getId().getJob().getOrganization().getId(), ProtoAssignment.of(assn)));
+	}
+
+	public EntityChangeSet.ChangeSet<ProtoAssignment> getChanges(long orgId, long lastKnownChange) {
+		return theChanges.getChanges(lastKnownChange, assn -> assn.orgId == orgId, assn -> assn.work);
+	}
+
+	static class OrgGroupedWork {
+		final long orgId;
+		final BinaryId id;
+		final ProtoAssignment work;
+
+		public OrgGroupedWork(long orgId, ProtoAssignment work) {
+			this.orgId = orgId;
+			id = new BinaryId(work.userId(), work.jobId());
+			this.work = work;
+		}
 	}
 }

@@ -14,7 +14,7 @@ public interface MembershipRepo extends JpaRepository<Membership, MembershipId> 
 	@Query("FROM Membership WHERE id.member=:user")
 	List<Membership> getMembership(@Param("user") User user);
 
-	@Query("FROM Membership WHERE id.organization=:user")
+	@Query("FROM Membership WHERE id.organization=:org")
 	List<Membership> getMembership(@Param("org") Organization org);
 
 	@Query("FROM Membership WHERE id.member.id=:userId AND id.organization.id=:orgId")

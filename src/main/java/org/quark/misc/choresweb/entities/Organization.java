@@ -39,11 +39,15 @@ public class Organization {
 	private Instant lastActive;
 
 	/** Hibernate constructor */
-	@SuppressWarnings("unused")
-	private Organization() {
+	protected Organization() {
 	}
 
 	public Organization(String name) {
 		this.name = name;
+	}
+
+	@Override
+	public String toString() {
+		return name;
 	}
 }

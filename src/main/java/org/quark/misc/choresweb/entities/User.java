@@ -42,11 +42,15 @@ public class User {
 	private List<Membership> membership = new ArrayList<>();
 
 	/** Hibernate constructor */
-	@SuppressWarnings("unused")
-	private User() {
+	protected User() {
 	}
 
 	public User(String email) {
 		this.email = email;
+	}
+
+	@Override
+	public String toString() {
+		return email;
 	}
 }
