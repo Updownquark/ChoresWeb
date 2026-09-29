@@ -10,14 +10,14 @@ import org.quark.misc.choresweb.entities.Membership;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 
-public record ProtoMembership(ProtoOrg organization, ProtoUser member, String name, Instant lastActive, boolean manager, boolean worker,
+public record ApiMembership(ApiOrg organization, ApiUser member, String name, Instant lastActive, boolean manager, boolean worker,
 	int level, long points, Set<String> labels, boolean deleted) {
 
-	public ProtoOrg organization() {
+	public ApiOrg organization() {
 		return organization;
 	}
 
-	public ProtoUser member() {
+	public ApiUser member() {
 		return member;
 	}
 
@@ -56,18 +56,18 @@ public record ProtoMembership(ProtoOrg organization, ProtoUser member, String na
 		return deleted;
 	}
 
-	public static ProtoMembership of(Membership membership, boolean withOrg, boolean withUser) {
-		return new ProtoMembership(//
-			withOrg ? ProtoOrg.of(membership.getId().getOrganization()) : null, //
-			withUser ? ProtoUser.of(membership.getId().getMember(), false) : null, //
+	public static ApiMembership of(Membership membership, boolean withOrg, boolean withUser) {
+		return new ApiMembership(//
+			withOrg ? ApiOrg.of(membership.getId().getOrganization()) : null, //
+			withUser ? ApiUser.of(membership.getId().getMember(), false) : null, //
 			membership.getName(), membership.getLastActive(), membership.isManager(), membership.isWorker(), membership.getLevel(),
 			membership.getPoints(), splitLabels(membership.getLabels()), false);
 	}
 
-	public static ProtoMembership deleted(Membership membership, boolean withOrg, boolean withUser) {
-		return new ProtoMembership(//
-			withOrg ? ProtoOrg.of(membership.getId().getOrganization()) : null, //
-			withUser ? ProtoUser.of(membership.getId().getMember(), false) : null, //
+	public static ApiMembership deleted(Membership membership, boolean withOrg, boolean withUser) {
+		return new ApiMembership(//
+			withOrg ? ApiOrg.of(membership.getId().getOrganization()) : null, //
+			withUser ? ApiUser.of(membership.getId().getMember(), false) : null, //
 			null, null, false, false, 0, 0, null, true);
 	}
 

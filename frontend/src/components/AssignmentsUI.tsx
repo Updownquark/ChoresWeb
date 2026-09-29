@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useSyncExternalStore } from "react";
 import ChoresTabParams from "./ChoresTabParams";
-import { assignmentService, jobService, memberService } from "../services/services";
+import { assignmentService, historyService, jobService, memberService } from "../services/services";
 import { Box, Button, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Tooltip } from "@mui/material";
 import { EditableTableCell } from "./util/EditableTableCell";
 
@@ -67,6 +67,7 @@ const AssignmentsUI: React.FC<ChoresTabParams>=({api, org, visible})=>{
 					orgId: org.organization!.id
 				});
 				memberService.check();
+				historyService.check();
 			}}>Submit</Button>
 			<Button onClick={e=>assignmentService.modify("DELETE", "/api/assignments/all", {
 				orgId: org.organization!.id

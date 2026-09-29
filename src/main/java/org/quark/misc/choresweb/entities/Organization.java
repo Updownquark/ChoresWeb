@@ -2,6 +2,7 @@ package org.quark.misc.choresweb.entities;
 
 import java.time.Instant;
 
+import org.qommons.Named;
 import org.springframework.format.annotation.DateTimeFormat;
 
 import jakarta.persistence.Column;
@@ -19,7 +20,7 @@ import lombok.Setter;
 	indexes = { //
 		@Index(name = "orgs_by_name", columnList = "name", unique = true)//
 	})
-public class Organization {
+public class Organization implements Named {
 	public static final int NAME_LENGTH = 200;
 
 	@Id

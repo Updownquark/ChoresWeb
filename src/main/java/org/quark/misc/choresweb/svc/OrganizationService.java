@@ -4,7 +4,6 @@ import java.time.Instant;
 import java.util.List;
 import java.util.NoSuchElementException;
 
-import org.qommons.StringUtils;
 import org.quark.misc.choresweb.entities.Membership;
 import org.quark.misc.choresweb.entities.Organization;
 import org.quark.misc.choresweb.entities.User;
@@ -14,6 +13,8 @@ import org.quark.misc.choresweb.repos.MembershipRepo;
 import org.quark.misc.choresweb.repos.OrgsRepo;
 import org.quark.misc.choresweb.repos.PointChangeRecordRepo;
 import org.quark.misc.choresweb.repos.PointResourceRepo;
+import org.quark.misc.choresweb.util.ChoresWebUtils;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -46,6 +47,18 @@ public class OrganizationService {
 		return theMembershipRepo.getMembership(user);
 	}
 
+	@Transactional
+	public Membership getMe(Jwt authUser, long orgId) {
+		User user = theUserSvc.getMe(authUser);
+		if (user == null)
+			return null;
+		theUserSvc.userActive(user);
+		Membership membership = theMembershipRepo.getMembership(user.getId(), orgId);
+		if (membership == null)
+			throw new NoSuchElementException("Organization does not exist or you are not a member");
+		return membership;
+	}
+
 	@Transactional(readOnly = true)
 	public Membership getOrganization(String userEmail, long id) {
 		User user = theUserSvc.getUser(userEmail);
@@ -62,7 +75,7 @@ public class OrganizationService {
 	public Membership addOrganization(String userEmail) {
 		if (!theUserSvc.canCreateOrgs(userEmail))
 			throw new UnsupportedOperationException("You do not have permission to create organizations");
-		String newName = StringUtils.getNewItemName(n -> theOrgRepo.getByName(n) > 0, "Org", StringUtils.SIMPLE_DUPLICATES);
+		String newName = ChoresWebUtils.getNewName(theOrgRepo.findAll(), 200, "Org");
 		Organization org = new Organization(newName);
 		theOrgRepo.save(org);
 		User user = theUserSvc.getOrCreateUser(userEmail);

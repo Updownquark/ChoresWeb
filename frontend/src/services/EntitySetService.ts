@@ -2,10 +2,24 @@ import { AxiosInstance } from "axios";
 import { LifeCycleService } from "./LifeCycleService";
 import * as Utils from "../util/Utils";
 
-interface EntityChangeSet<E>{
+export interface EntityChangeSet<E>{
 	lastTime: number,
 	changes: readonly E[];
 }
+
+export const EntityChangeType = {
+	add: "add",
+	remove: "remove",
+	update: "update",
+};
+export type EntityChangeType = typeof EntityChangeType[keyof typeof EntityChangeType];
+
+export interface EntityChangeEvent<E>{
+	readonly type: EntityChangeType,
+	readonly entities: ReadonlyMap<string | number, E>;
+}
+
+export type EntityChangeListener<E>=(events: readonly EntityChangeEvent<E> [])=>void;
 
 abstract class EntitySetService<E>{
 	private readonly _api: AxiosInstance;
@@ -16,7 +30,7 @@ abstract class EntitySetService<E>{
 	private _lastChangeTime: number=0;
 	private _heartBeatListener: (()=>void) | null = null;
 	private _check: (()=>Promise<void>) | null = null;
-	private readonly _listeners: (()=>void) [] = [];
+	private readonly _listeners: EntityChangeListener<E> [] = [];
 
 	constructor(api: AxiosInstance){
 		this._api=api;
@@ -54,6 +68,9 @@ abstract class EntitySetService<E>{
 			return;
 		}
 		const toDelete: Set<string | number> | null= fullSet ? new Set<string | number>() : null;
+		let added: Map<string | number, E> | null = null;
+		let removed: Map<string | number, E> | null = null;
+		let updated: Map<string | number, E> | null = null;
 		for(const change of changes.changes){
 			const id=this.getId(change);
 			const prev=this._entitiesById.get(id);
@@ -62,10 +79,17 @@ abstract class EntitySetService<E>{
 				const index=Utils.binarySearch(this._entities, e=>this.compare(prev, e));
 				if(toDelete)
 					toDelete.delete(id);
-				if(deleted)
+				if(deleted){
 					this.deleted(index, prev);
-				else
+					if(!removed)
+						removed=new Map();
+					removed.set(id, prev);
+				} else{
 					this.updated(index, change);
+					if(!updated)
+						updated=new Map();
+					updated.set(id, change);
+				}
 			} else if(!deleted) { //New entity
 				let index=Utils.binarySearch(this._entities, e=>this.compare(change, e));
 				if(index<0)
@@ -75,19 +99,45 @@ abstract class EntitySetService<E>{
 						index++;
 				}
 				this.added(index, change);
+				if(!added)
+					added=new Map();
+				added.set(id, change);
 			}
 		}
-		if(toDelete){
+		if(toDelete && toDelete.size){
 			for(const id of toDelete){
 				const entity=this._entitiesById.get(id);
 				if(entity){
 					const index=Utils.binarySearch(this._entities, e=>this.compare(entity, e));
 					this.deleted(index, entity);
+					if(!removed)
+						removed=new Map();
+					removed.set(id, entity);
 				}
 			}
 		}
 		this._immutableEntities=this._entities;
-		this.fireListeners();
+		const events: EntityChangeEvent<E>[]=[];
+		if(removed){
+			events.push({
+				type: EntityChangeType.remove,
+				entities: removed,
+			});
+		}
+		if(added){
+			events.push({
+				type: EntityChangeType.add,
+				entities: added,
+			});
+		}
+		if(updated){
+			events.push({
+				type: EntityChangeType.update,
+				entities: updated,
+			});
+		}
+		if(events.length)
+			this.fireListeners(events);
 	}
 
 	public disconnect(){
@@ -115,10 +165,14 @@ abstract class EntitySetService<E>{
 	}
 
 	protected clear(){
+		const entities:ReadonlyMap<string | number, E>=new Map(this._entitiesById);
 		this._entities.splice(0, this._entities.length);
 		this._entitiesById.clear();
 		this._immutableEntities=[];
-		this.fireListeners();
+		this.fireListeners([{
+			type: EntityChangeType.remove,
+			entities: entities,
+		}]);
 	}
 
 	abstract getId(entity: E): string | number;
@@ -131,8 +185,8 @@ abstract class EntitySetService<E>{
 		return this._immutableEntities;
 	}
 
-	public getById(id: string | number): E | undefined {
-		return this._entitiesById.get(id);
+	public getById(id: string | number): E | null {
+		return this._entitiesById.get(id) ?? null;
 	}
 
 	public async check(){
@@ -152,7 +206,7 @@ abstract class EntitySetService<E>{
 		})).data, false);
 	}
 
-	public onChange(listener: ()=>void): ()=>void {
+	public onChange(listener: EntityChangeListener<E>): ()=>void {
 		this._listeners.push(listener);
 		return ()=>{
 			const index=this._listeners.indexOf(listener);
@@ -161,9 +215,9 @@ abstract class EntitySetService<E>{
 		};
 	}
 
-	private fireListeners() {
+	private fireListeners(events: readonly EntityChangeEvent<E>[]) {
 		for(const listener of this._listeners)
-			listener();
+			listener(events);
 	}
 }
 

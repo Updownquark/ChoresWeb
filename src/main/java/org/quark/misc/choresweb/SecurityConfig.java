@@ -2,23 +2,37 @@ package org.quark.misc.choresweb;
 
 import java.util.List;
 
+import org.quark.misc.choresweb.svc.AuthService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.oauth2.jwt.JwtDecoders;
+import org.springframework.security.oauth2.jwt.JwtException;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
+import com.nimbusds.jwt.JWTClaimsSet;
+import com.nimbusds.jwt.SignedJWT;
+
 @Configuration
 @EnableWebSecurity
 public class SecurityConfig {
-	@Value("${chores.cors.allowed-origins}")
 	private List<String> allowedOrigins;
+
+	private final AuthService theAuthService;
+
+	public SecurityConfig(//
+		@Value("${chores.cors.allowed-origins}") List<String> allowedOrigins, //
+		AuthService authService) {
+		this.allowedOrigins = allowedOrigins;
+		theAuthService = authService;
+	}
 
 	@Bean
 	SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
@@ -27,14 +41,45 @@ public class SecurityConfig {
 			.csrf(csrf -> csrf.disable()) // Enable and configure CSRF with cookies in production
 			.sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))//
 			.authorizeHttpRequests(auth -> auth//
-				// .requestMatchers("/api/public/**").permitAll()//
+				.requestMatchers("/api/public/**", // I don't have any public APIs at the moment
+					"/api/auth/refresh", "/api/auth/logout" // No authorization for end points needed for authorization
+				).permitAll()//
 				.anyRequest().authenticated()//
 			)//
 				// Configures the backend strictly as a stateless Resource Server accepting JWTs
-			.oauth2ResourceServer(oauth -> oauth.jwt(Customizer.withDefaults()))//
+			.oauth2ResourceServer(oauth -> oauth.jwt(jwt -> jwt.decoder(jwtDecoder())))//
 		;
 
 		return http.build();
+	}
+
+	@Bean
+	public JwtDecoder jwtDecoder() {
+		// 1. Fetch your custom stateless symmetric key application decoder from the service
+		JwtDecoder myDecoder = theAuthService.getDecoder();
+
+		// 2. Automatically build Google's decoder using standard OIDC discovery rules.
+		// This uses your application.yaml parameter context to pull down rotating certs natively!
+		JwtDecoder googleDecoder = JwtDecoders.fromIssuerLocation("https://accounts.google.com");
+
+		// 3. Functional Router Lambda: Directs keys based on unverified header structures
+		return token -> {
+			try {
+				SignedJWT signedJWT = SignedJWT.parse(token);
+				JWTClaimsSet claims = signedJWT.getJWTClaimsSet();
+				String issuer = claims.getIssuer();
+
+				// Route tokens containing a google authority domain down the OIDC pipeline
+				if (issuer != null && issuer.contains("google.com")) {
+					return googleDecoder.decode(token);
+				}
+
+				// Safe local fallback: Any internal session validation runs strictly on your local secret keys
+				return myDecoder.decode(token);
+			} catch (Exception e) {
+				throw new JwtException("Failed to route and decode incoming token payload structure", e);
+			}
+		};
 	}
 
 	@Bean

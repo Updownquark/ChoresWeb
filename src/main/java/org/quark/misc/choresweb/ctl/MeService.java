@@ -1,6 +1,6 @@
 package org.quark.misc.choresweb.ctl;
 
-import org.quark.misc.choresweb.api.ProtoUser;
+import org.quark.misc.choresweb.api.ApiUser;
 import org.quark.misc.choresweb.entities.User;
 import org.quark.misc.choresweb.svc.UserService;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -19,12 +19,14 @@ public class MeService {
 	}
 
 	@GetMapping("/me")
-	public ProtoUser getMe(@AuthenticationPrincipal Jwt user) {
+	public ApiUser getMe(@AuthenticationPrincipal Jwt user) {
 		String email = user.getClaimAsString("email");
+		if (email == null)
+			email = user.getSubject();
 		User dbUser = theUserSvc.getUserCreateIfAdmin(email);
 		if (dbUser != null)
-			return ProtoUser.of(dbUser, theUserSvc.canCreateOrgs(email));
+			return ApiUser.of(dbUser, theUserSvc.canCreateOrgs(email));
 		else
-			return new ProtoUser(-1, email, false);
+			return new ApiUser(-1, email, false);
 	}
 }

@@ -2,6 +2,7 @@ package org.quark.misc.choresweb.entities;
 
 import java.time.Instant;
 
+import org.qommons.Named;
 import org.springframework.format.annotation.DateTimeFormat;
 
 import jakarta.persistence.Column;
@@ -21,7 +22,7 @@ import lombok.Setter;
 @Table(name = "job", indexes = { //
 		@Index(name = "jobs_by_org, name", columnList = "organization", unique = true)//
 })
-public class Job {
+public class Job implements Named {
 	@Id
 	@GeneratedValue(strategy = GenerationType.IDENTITY)
 	@Getter

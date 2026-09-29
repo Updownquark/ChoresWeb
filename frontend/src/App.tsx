@@ -1,11 +1,6 @@
-import React, { useState, useEffect } from "react";
-import {
-	GoogleOAuthProvider,
-	GoogleLogin,
-	CredentialResponse,
-} from "@react-oauth/google";
-import { BACKEND_API_URL, CLIENT_ID } from "./config/backend";
-import axios from "axios";
+import { useState, useEffect } from "react";
+import { GoogleLogin, GoogleOAuthProvider } from "@react-oauth/google";
+import { CLIENT_ID } from "./config/backend";
 import { myTheme } from "./theme";
 import { StyledEngineProvider, ThemeProvider } from "@mui/material/styles";
 import { Button, Container, CssBaseline, Typography } from "@mui/material";
@@ -13,30 +8,8 @@ import User from "./values/User";
 import Membership from "./values/Membership";
 import OrganizationList from "./components/OrganziationList";
 import OrganizationUI from "./components/OrganizationUI";
-import { authContextHolder, lifeCycle, jobService, memberService, assignmentService} from "./services/services";
-
-authContextHolder.getToken=()=>sessionStorage.getItem("google_id_token");
-
-export const api = axios.create({
-	baseURL: BACKEND_API_URL,
-	headers: {
-		"Content-Type": "application/json",
-	},
-});
-
-// Request Interceptor: Automatically injects the cached token if it exists
-api.interceptors.request.use(
-	(config) => {
-		const token = sessionStorage.getItem("google_id_token");
-		if (token && config.headers) {
-			config.headers.Authorization = `Bearer ${token}`;
-		}
-		return config;
-	},
-	(error) => {
-		return Promise.reject(error);
-	},
-);
+import { authService, api, lifeCycle, jobService, memberService, assignmentService, resourcesService, historyService} from "./services/services";
+import { CustomLogin } from "./components/util/CustomLogin";
 
 const LoadingStage = {
 	Me: "Me",
@@ -54,7 +27,6 @@ export function org(): Membership | null {
 }
 
 function ChoreChampApp() {
-	const [token, setToken] = useState<string | null>(null);
 	const [me, setMe] = useState<User | null>(null);
 	const [loading, setLoading] = useState<LoadingStage | null>(null);
 	const [orgs, setOrgs] = useState<readonly Membership[] | null>();
@@ -74,40 +46,18 @@ function ChoreChampApp() {
 				"/api/assignments/by-org/"+org.organization!.id,
 				"/api/assignments/changes/"+org.organization!.id,
 				lifeCycle);
+			resourcesService.init(
+				"/api/resources/by-org/"+org.organization!.id,
+				"/api/resources/changes/"+org.organization!.id,
+				lifeCycle);
+			historyService.init(org.organization!.id, lifeCycle);
 		}
 		_setOrg(org);
 	};
 
-	// Check sessionStorage for an existing cached token on startup
-	useEffect(() => {
-		const cachedToken = sessionStorage.getItem("google_id_token");
-		if (cachedToken) {
-			setToken(cachedToken);
-			fetchMe();
-		}
-		// lifeCycle.start();
+	useEffect(()=>{
+		fetchMe();
 	}, []);
-
-	const handleLoginSuccess = (credentialResponse: CredentialResponse) => {
-		const jwtToken = credentialResponse.credential;
-		if (jwtToken) {
-			sessionStorage.setItem("google_id_token", jwtToken); // Cache it
-			setToken(jwtToken); // Update state to reveal dashboard
-			fetchMe();
-		}
-	};
-
-	const handleLoginError = () => {
-		console.error("Google Sign-In failed");
-		alert("Failed to log in with Google. Please try again.");
-	};
-
-	// Clear cache and state on logout
-	const handleLogout = () => {
-		sessionStorage.removeItem("google_id_token");
-		setToken(null);
-		setMe(null);
-	};
 
 	// 6. Test the secure API instance
 	const fetchMe = async () => {
@@ -159,19 +109,7 @@ function ChoreChampApp() {
 			break;
 	}
 
-	if (!token) {
-		return (
-			<Container sx={{width: "100%", mt: 4 }}>
-				<Typography variant="body1" sx={{ mb: 2 }}>
-					Please log in to access the application dashboard.
-				</Typography>
-				<GoogleLogin
-					onSuccess={handleLoginSuccess}
-					onError={handleLoginError}
-				/>
-			</Container>
-		);
-	} else if (loading) {
+	if (loading) {
 		return (
 			<Container sx={{ width: "100%", mt: 4 }}>
 				<Typography variant="h4" component="h1" gutterBottom>
@@ -268,12 +206,35 @@ function ChoreChampApp() {
 function App() {
 	return (
 		<StyledEngineProvider injectFirst>
-			<ThemeProvider theme={myTheme}>
+			{/*<ThemeProvider theme={myTheme}>*/}
 				<CssBaseline />
 				<GoogleOAuthProvider clientId={CLIENT_ID}>
-					<ChoreChampApp />
+					<CustomLogin
+						authService={authService}
+						init={({ onAuthSuccess, onAuthError, onLogout}) =>(
+							<div style={{textAlign: "center", marginTop: "50px"}}>
+								<h1>ChoreChamp Login</h1>
+								<GoogleLogin
+									onSuccess={(response)=>{
+										if(response.credential)
+											onAuthSuccess(response.credential);
+										else
+											onAuthError("No credential payload found");
+									}}
+									onError={()=>onAuthError("Authentication failed")}
+									useOneTap
+								/>
+							</div>
+						)}
+						onFail={
+							<div style={{ color: "red", textAlign: "center"}}>
+								<h1>ChoreChamp Login Failed, please try again.</h1>
+							</div>
+						}>
+						<ChoreChampApp />
+					</CustomLogin>
 				</GoogleOAuthProvider>
-			</ThemeProvider>
+			{/*</ThemeProvider>*/}
 		</StyledEngineProvider>
 	);
 }

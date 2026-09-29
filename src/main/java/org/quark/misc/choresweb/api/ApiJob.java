@@ -6,7 +6,7 @@ import org.quark.misc.choresweb.entities.Job;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 
-public record ProtoJob(long id, String name, int value, int minLevel, int maxLevel, Set<String> inclusionLabels,
+public record ApiJob(long id, String name, int value, int minLevel, int maxLevel, Set<String> inclusionLabels,
 	Set<String> exclusionLabels, int priority, boolean active, boolean deleted) {
 
 	public long id() {
@@ -52,13 +52,13 @@ public record ProtoJob(long id, String name, int value, int minLevel, int maxLev
 		return deleted;
 	}
 
-	public static ProtoJob of(Job job) {
-		return new ProtoJob(job.getId(), job.getName(), job.getValue(), job.getMinLevel(), job.getMaxLevel(), //
-			ProtoMembership.splitLabels(job.getInclusionLabels()), ProtoMembership.splitLabels(job.getExclusionLabels()), //
+	public static ApiJob of(Job job) {
+		return new ApiJob(job.getId(), job.getName(), job.getValue(), job.getMinLevel(), job.getMaxLevel(), //
+			ApiMembership.splitLabels(job.getInclusionLabels()), ApiMembership.splitLabels(job.getExclusionLabels()), //
 			job.getPriority(), job.isActive(), false);
 	}
 
-	public static ProtoJob deleted(long jobId) {
-		return new ProtoJob(jobId, null, 0, 0, 0, null, null, 0, false, true);
+	public static ApiJob deleted(long jobId) {
+		return new ApiJob(jobId, null, 0, 0, 0, null, null, 0, false, true);
 	}
 }

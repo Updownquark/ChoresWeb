@@ -1,5 +1,7 @@
 package org.quark.misc.choresweb.entities;
 
+import org.qommons.Named;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
@@ -17,7 +19,7 @@ import lombok.Setter;
 @Table(name = "point_resource", indexes = { //
 		@Index(name = "resources_by_org", columnList = "organization, name", unique = true)//
 })
-public class PointResource {
+public class PointResource implements Named {
 	@Id
 	@GeneratedValue(strategy = GenerationType.IDENTITY)
 	@Getter

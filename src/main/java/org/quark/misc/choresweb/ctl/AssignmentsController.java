@@ -1,8 +1,10 @@
 package org.quark.misc.choresweb.ctl;
 
-import org.quark.misc.choresweb.api.ProtoAssignment;
+import org.quark.misc.choresweb.api.ApiAssignment;
+import org.quark.misc.choresweb.api.ApiMembership;
 import org.quark.misc.choresweb.entities.Membership;
 import org.quark.misc.choresweb.svc.OrganizationService;
+import org.quark.misc.choresweb.svc.UserService;
 import org.quark.misc.choresweb.svc.WorkService;
 import org.quark.misc.choresweb.util.EntityChangeSet;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -22,28 +24,30 @@ import org.springframework.web.bind.annotation.RestController;
 public class AssignmentsController {
 	private final OrganizationService theMembershipSvc;
 	private final WorkService theWorkService;
+	private final UserService theUserService;
 
-	public AssignmentsController(OrganizationService membershipSvc, WorkService workService) {
+	public AssignmentsController(OrganizationService membershipSvc, WorkService workService, UserService userService) {
 		theMembershipSvc = membershipSvc;
 		theWorkService = workService;
+		theUserService = userService;
 	}
 
 	@GetMapping("/by-org/{orgId}")
-	public EntityChangeSet.ChangeSet<ProtoAssignment> getAssignments(@AuthenticationPrincipal Jwt user, @PathVariable("orgId") long orgId) {
-		return theWorkService.getApiAssignments(theMembershipSvc.getOrganization(user.getClaimAsString("email"), orgId));
+	public EntityChangeSet.ChangeSet<ApiAssignment> getAssignments(@AuthenticationPrincipal Jwt user, @PathVariable("orgId") long orgId) {
+		return theWorkService.getApiAssignments(theMembershipSvc.getMe(user, orgId));
 	}
 
 	@GetMapping("/changes/{orgId}")
-	public EntityChangeSet.ChangeSet<ProtoAssignment> getAssignmentChanges(@AuthenticationPrincipal Jwt user,
+	public EntityChangeSet.ChangeSet<ApiAssignment> getAssignmentChanges(@AuthenticationPrincipal Jwt user,
 		@PathVariable("orgId") long orgId, @RequestParam(required = true) long lastKnownChange) {
-		theMembershipSvc.getOrganization(user.getClaimAsString("email"), orgId); // Ensure the user has access
+		theMembershipSvc.getMe(user, orgId); // Ensure the user has access
 		return theWorkService.getChanges(orgId, lastKnownChange);
 	}
 
 	@PutMapping
-	public EntityChangeSet.ChangeSet<ProtoAssignment> addOrModifyAssignment(@AuthenticationPrincipal Jwt user,
+	public EntityChangeSet.ChangeSet<ApiAssignment> addOrModifyAssignment(@AuthenticationPrincipal Jwt user,
 		@RequestBody AssnAddOrMod action, @RequestParam(required = true) long lastKnownChange) {
-		Membership me = theMembershipSvc.getOrganization(user.getClaimAsString("email"), action.orgId());
+		Membership me = theMembershipSvc.getMe(user, action.orgId());
 		theWorkService.assign(me, action.jobId(), action.userId(), assn -> {
 			if (action.completed() != null)
 				assn.setCompleted(action.completed());
@@ -55,28 +59,38 @@ public class AssignmentsController {
 	}
 
 	@DeleteMapping
-	public EntityChangeSet.ChangeSet<ProtoAssignment> deleteAssignment(@AuthenticationPrincipal Jwt user,
+	public EntityChangeSet.ChangeSet<ApiAssignment> deleteAssignment(@AuthenticationPrincipal Jwt user,
 		@RequestParam(required = true) long orgId, @RequestParam(required = true) long userId, @RequestParam(required = true) long jobId,
 		@RequestParam(required = true) long lastKnownChange) {
-		Membership membership = theMembershipSvc.getOrganization(user.getClaimAsString("email"), orgId);
+		Membership membership = theMembershipSvc.getMe(user, orgId);
 		theWorkService.deleteAssignment(membership, jobId, userId);
 		return theWorkService.getChanges(orgId, lastKnownChange);
 	}
 
 	@DeleteMapping("/all")
-	public EntityChangeSet.ChangeSet<ProtoAssignment> deleteAssignment(@AuthenticationPrincipal Jwt user,
+	public EntityChangeSet.ChangeSet<ApiAssignment> deleteAssignment(@AuthenticationPrincipal Jwt user,
 		@RequestParam(required = true) long orgId, @RequestParam(required = true) long lastKnownChange) {
-		Membership membership = theMembershipSvc.getOrganization(user.getClaimAsString("email"), orgId);
+		Membership membership = theMembershipSvc.getMe(user, orgId);
 		theWorkService.clearAssignments(membership);
 		return theWorkService.getChanges(orgId, lastKnownChange);
 	}
 
 	@PostMapping("/submit")
-	public EntityChangeSet.ChangeSet<ProtoAssignment> submitAssignments(@AuthenticationPrincipal Jwt user,
+	public EntityChangeSet.ChangeSet<ApiAssignment> submitAssignments(@AuthenticationPrincipal Jwt user,
 		@RequestParam(required = true) long orgId, @RequestParam(required = true) long lastKnownChange) {
-		Membership membership = theMembershipSvc.getOrganization(user.getClaimAsString("email"), orgId);
+		Membership membership = theMembershipSvc.getMe(user, orgId);
 		theWorkService.commitAssignments(membership);
 		return theWorkService.getChanges(orgId, lastKnownChange);
+	}
+
+	@PostMapping("/report")
+	public EntityChangeSet.ChangeSet<ApiMembership> reportWork(@AuthenticationPrincipal Jwt user,
+		@RequestBody(required = true) AssnAddOrMod work, @RequestParam(required = true) long lastKnownChange) {
+		if (work.completed == null)
+			throw new IllegalArgumentException("Completed is required for a work report");
+		Membership membership = theMembershipSvc.getMe(user, work.orgId);
+		theWorkService.recordWork(membership, work.jobId, work.userId, work.completed, work.notes());
+		return theUserService.getChanges(work.orgId, lastKnownChange);
 	}
 
 	static record AssnAddOrMod(long orgId, long userId, long jobId, Integer completed, String notes) {

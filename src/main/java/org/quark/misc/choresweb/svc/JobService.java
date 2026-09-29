@@ -6,14 +6,11 @@ import java.util.function.Consumer;
 import java.util.function.Predicate;
 
 import org.qommons.StringUtils;
-import org.quark.misc.choresweb.api.ProtoJob;
+import org.quark.misc.choresweb.api.ApiJob;
 import org.quark.misc.choresweb.entities.Job;
 import org.quark.misc.choresweb.entities.Membership;
-import org.quark.misc.choresweb.entities.PointChangeRecord;
 import org.quark.misc.choresweb.repos.JobRepo;
-import org.quark.misc.choresweb.repos.PointChangeRecordRepo;
 import org.quark.misc.choresweb.util.EntityChangeSet;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -22,12 +19,10 @@ import jakarta.persistence.EntityNotFoundException;
 @Service
 public class JobService {
 	private final JobRepo theJobRepo;
-	private final PointChangeRecordRepo thePointChangeRepo;
 	private final EntityChangeSet<Long, OrgGroupedJob> theChanges = new EntityChangeSet<>(job -> job.job.id(), 15000);
 
-	JobService(JobRepo jobRepo, PointChangeRecordRepo pointChangeRepo) {
+	JobService(JobRepo jobRepo) {
 		theJobRepo = jobRepo;
-		thePointChangeRepo = pointChangeRepo;
 	}
 
 	@Transactional(readOnly = true)
@@ -36,9 +31,9 @@ public class JobService {
 	}
 
 	@Transactional(readOnly = true)
-	public EntityChangeSet.ChangeSet<ProtoJob> getApiJobs(Membership me) {
+	public EntityChangeSet.ChangeSet<ApiJob> getApiJobs(Membership me) {
 		return theChanges.getValues(() -> theJobRepo.getOrgJobs(me.getId().getOrganization()).stream()//
-			.map(ProtoJob::of)//
+			.map(ApiJob::of)//
 			.toList());
 	}
 
@@ -69,7 +64,7 @@ public class JobService {
 		if (configure != null)
 			configure.accept(job);
 		theJobRepo.save(job);
-		theChanges.changed(new OrgGroupedJob(job.getOrganization().getId(), ProtoJob.of(job)));
+		theChanges.changed(new OrgGroupedJob(job.getOrganization().getId(), ApiJob.of(job)));
 		return job;
 	}
 
@@ -87,7 +82,7 @@ public class JobService {
 			throw new NoSuchElementException();
 		if (modify.test(job))
 			theJobRepo.save(job);
-		theChanges.changed(new OrgGroupedJob(job.getOrganization().getId(), ProtoJob.of(job)));
+		theChanges.changed(new OrgGroupedJob(job.getOrganization().getId(), ApiJob.of(job)));
 		return job;
 	}
 
@@ -104,29 +99,22 @@ public class JobService {
 		if (job == null || job.getOrganization().getId() != me.getId().getOrganization().getId())
 			throw new NoSuchElementException();
 		theJobRepo.delete(job);
-		theChanges.changed(new OrgGroupedJob(job.getOrganization().getId(), ProtoJob.deleted(jobId)));
-	}
-
-	@Transactional(readOnly = true)
-	public List<PointChangeRecord.FullPcrDto> getJobHistory(Membership me, Job job, int pageNumber, int pageSize) {
-		if (me.getId().getOrganization().getId() != job.getOrganization().getId())
-			throw new UnsupportedOperationException("You must sign in to the organization you want to view");
-		return thePointChangeRepo.getJobHistory(job, PageRequest.of(pageNumber, pageSize)).getContent();
+		theChanges.changed(new OrgGroupedJob(job.getOrganization().getId(), ApiJob.deleted(jobId)));
 	}
 
 	public void jobUpdated(Job job) {
-		theChanges.changed(new OrgGroupedJob(job.getOrganization().getId(), ProtoJob.of(job)));
+		theChanges.changed(new OrgGroupedJob(job.getOrganization().getId(), ApiJob.of(job)));
 	}
 
-	public EntityChangeSet.ChangeSet<ProtoJob> getChanges(long orgId, long lastKnownChange) {
+	public EntityChangeSet.ChangeSet<ApiJob> getChanges(long orgId, long lastKnownChange) {
 		return theChanges.getChanges(lastKnownChange, job -> job.orgId == orgId, job -> job.job);
 	}
 
 	static class OrgGroupedJob {
 		final long orgId;
-		final ProtoJob job;
+		final ApiJob job;
 
-		OrgGroupedJob(long orgId, ProtoJob job) {
+		OrgGroupedJob(long orgId, ApiJob job) {
 			this.orgId = orgId;
 			this.job = job;
 		}

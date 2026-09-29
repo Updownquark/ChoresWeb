@@ -44,7 +44,6 @@ function ValidatedTextField<T>({
 	}, [draftValue, draftText, isDirty, isValid, value, onChange]);
 
 	useEffect(() => {
-		console.log("New VTF");
 		setDraftValue(value);
 		setDraftText(render(value, renderer));
 		setDirty(false);
@@ -67,7 +66,6 @@ function ValidatedTextField<T>({
 	}, []);
 
 	const setDirty = (dirty: boolean) => {
-		console.log("VTF dirty=", dirty, " from ", isDirty);
 		setIsDirty(dirty);
 	};
 
@@ -88,11 +86,6 @@ function ValidatedTextField<T>({
 	};
 
 	const unfocus = (e: React.FocusEvent) => {
-		console.log(
-			"Unfocus VTF: ",
-			stateRef.current.isDirty,
-			stateRef.current.isValid,
-		);
 		if (stateRef.current.isDirty) {
 			if (stateRef.current.isValid == null) commit();
 			else revert();
@@ -106,8 +99,11 @@ function ValidatedTextField<T>({
 		var parsedValue: T;
 		try {
 			parsedValue = parser(newValue);
-		} catch {
-			setValid("Invalid input");
+		} catch(e) {
+			if(typeof e === "string")
+				setValid(e as string);
+			else
+				setValid("Invalid input");
 			return;
 		}
 		setDraftValue(parsedValue);

@@ -10,7 +10,7 @@ import JobsUI from "./JobsUI";
 import WorkersUI from "./WorkersUI";
 import ResourcesUI from "./ResourcesUI";
 import FileUploadIcon from "@mui/icons-material/FileUpload";
-import { assignmentService, jobService, memberService } from "../services/services";
+import { assignmentService, historyService, jobService, memberService, resourcesService } from "../services/services";
 
 interface OrgUIParams{
 	org: Membership;
@@ -40,8 +40,9 @@ const OrganizationUI: React.FC<OrgUIParams> =({org, api})=>{
 		}).then(()=>{
 			jobService.check();
 			memberService.check();
-			// resourceService.check();
+			resourcesService.check();
 			assignmentService.check();
+			historyService.check();
 		});
 	}
 
@@ -89,10 +90,10 @@ const OrganizationUI: React.FC<OrgUIParams> =({org, api})=>{
 			</>
 		}</Box>
 		<Tabs value={selectedTab} onChange={(e, newValue)=>setSelectedTab(newValue)}>
-			<Tab id="assignments" label="Assignments" />
-			<Tab id="workers" label="Workers" />
-			<Tab id="jobs" label="Jobs" />
-			<Tab id="resources" label="Resources" />
+			<Tab label="Assignments" />
+			<Tab label="Workers" />
+			<Tab label="Jobs" />
+			<Tab label="Resources" />
 		</Tabs>
 		<AssignmentsUI org={org} api={api} visible={selectedTab==0} />
 		<WorkersUI org={org} api={api} visible={selectedTab==1} />

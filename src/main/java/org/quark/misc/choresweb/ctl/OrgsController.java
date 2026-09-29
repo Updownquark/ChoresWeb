@@ -3,7 +3,7 @@ package org.quark.misc.choresweb.ctl;
 import java.util.Collections;
 import java.util.List;
 
-import org.quark.misc.choresweb.api.ProtoMembership;
+import org.quark.misc.choresweb.api.ApiMembership;
 import org.quark.misc.choresweb.entities.Membership;
 import org.quark.misc.choresweb.entities.User;
 import org.quark.misc.choresweb.svc.OrganizationService;
@@ -32,37 +32,37 @@ public class OrgsController {
 	}
 
 	@GetMapping
-	public List<ProtoMembership> getAvailable(@AuthenticationPrincipal Jwt user) {
-		User dbUser = theUserSvc.getUserCreateIfAdmin(user.getClaimAsString("email"));
+	public List<ApiMembership> getAvailable(@AuthenticationPrincipal Jwt user) {
+		User dbUser = theUserSvc.getMe(user);
 		if (dbUser == null)
 			return Collections.emptyList();
 		return theOrgSvc.getAvailableOrgs(dbUser).stream()//
-			.map(org -> ProtoMembership.of(org, true, false))//
+			.map(org -> ApiMembership.of(org, true, false))//
 			.toList();
 	}
 
 	@GetMapping("/{id}")
-	public ProtoMembership get(@AuthenticationPrincipal Jwt user, @PathVariable long id) {
-		Membership org = theOrgSvc.getOrganization(user.getClaimAsString("email"), id);
-		return ProtoMembership.of(org, true, false);
+	public ApiMembership get(@AuthenticationPrincipal Jwt user, @PathVariable long id) {
+		Membership org = theOrgSvc.getMe(user, id);
+		return ApiMembership.of(org, true, false);
 	}
 
 	@PostMapping("/add")
-	public ProtoMembership add(@AuthenticationPrincipal Jwt user) {
+	public ApiMembership add(@AuthenticationPrincipal Jwt user) {
 		Membership org = theOrgSvc.addOrganization(user.getClaimAsString("email"));
-		return ProtoMembership.of(org, true, false);
+		return ApiMembership.of(org, true, false);
 	}
 
 	@PostMapping("set-name")
-	public ProtoMembership setName(@AuthenticationPrincipal Jwt user, @RequestBody ModifyOrg org) {
-		Membership found = theOrgSvc.getOrganization(user.getClaimAsString("email"), org.id());
+	public ApiMembership setName(@AuthenticationPrincipal Jwt user, @RequestBody ModifyOrg org) {
+		Membership found = theOrgSvc.getMe(user, org.id());
 		theOrgSvc.setOrganizationName(found, org.name());
-		return ProtoMembership.of(found, true, false);
+		return ApiMembership.of(found, true, false);
 	}
 
 	@DeleteMapping("/{id}")
 	public void delete(@AuthenticationPrincipal Jwt user, @PathVariable long id) {
-		theOrgSvc.deleteOrganization(theOrgSvc.getOrganization(user.getClaimAsString("email"), id));
+		theOrgSvc.deleteOrganization(theOrgSvc.getMe(user, id));
 	}
 
 	public record ModifyOrg(long id, @NotNull String name) {}

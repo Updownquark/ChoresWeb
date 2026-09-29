@@ -10,7 +10,7 @@ import java.util.NoSuchElementException;
 import java.util.Set;
 import java.util.function.Predicate;
 
-import org.quark.misc.choresweb.api.ProtoAssignment;
+import org.quark.misc.choresweb.api.ApiAssignment;
 import org.quark.misc.choresweb.entities.Assignment;
 import org.quark.misc.choresweb.entities.Job;
 import org.quark.misc.choresweb.entities.Membership;
@@ -57,9 +57,9 @@ public class WorkService {
 	}
 
 	@Transactional(readOnly = true)
-	public EntityChangeSet.ChangeSet<ProtoAssignment> getApiAssignments(Membership me) {
+	public EntityChangeSet.ChangeSet<ApiAssignment> getApiAssignments(Membership me) {
 		return theChanges.getValues(() -> theAssnRepo.getAssignments(me.getId().getOrganization()).stream()//
-			.map(ProtoAssignment::of)//
+			.map(ApiAssignment::of)//
 			.toList());
 	}
 
@@ -92,12 +92,12 @@ public class WorkService {
 			if (assn.getCompleted() == 0 && assn.getNotes() == null) {
 				if (!newAssn) {
 					theAssnRepo.delete(assn);
-					theChanges.changed(new OrgGroupedWork(job.getOrganization().getId(), ProtoAssignment.deleted(userId, jobId)));
+					theChanges.changed(new OrgGroupedWork(job.getOrganization().getId(), ApiAssignment.deleted(userId, jobId)));
 				}
 				return null;
 			}
 			theAssnRepo.save(assn);
-			theChanges.changed(new OrgGroupedWork(job.getOrganization().getId(), ProtoAssignment.of(assn)));
+			theChanges.changed(new OrgGroupedWork(job.getOrganization().getId(), ApiAssignment.of(assn)));
 		}
 		return assn;
 	}
@@ -124,7 +124,7 @@ public class WorkService {
 			throw new NoSuchElementException("Job with ID " + jobId + " does not exist or is invisible");
 
 		theAssnRepo.deleteByJobAndWorker(job, user);
-		theChanges.changed(new OrgGroupedWork(job.getOrganization().getId(), ProtoAssignment.deleted(userId, jobId)));
+		theChanges.changed(new OrgGroupedWork(job.getOrganization().getId(), ApiAssignment.deleted(userId, jobId)));
 	}
 
 	@Transactional
@@ -150,7 +150,7 @@ public class WorkService {
 			PointChangeRecord record = new PointChangeRecord(assn.getId().getJob(), member, now, assn.getCompleted());
 			record.setNotes(assn.getNotes());
 			records.add(record);
-			theChanges.changed(new OrgGroupedWork(me.getId().getOrganization().getId(), ProtoAssignment.of(assn)));
+			theChanges.changed(new OrgGroupedWork(me.getId().getOrganization().getId(), ApiAssignment.of(assn)));
 			if (jobs.add(assn.getId().getJob()))
 				assn.getId().getJob().setLastDone(now);
 		}
@@ -204,6 +204,8 @@ public class WorkService {
 
 		Instant now = Instant.now();
 		PointChangeRecord record = new PointChangeRecord(job, member, now, points);
+		if (notes != null && notes.isEmpty())
+			notes = null;
 		record.setNotes(notes);
 		thePointChangeRepo.save(record);
 		member.setLastActive(now);
@@ -244,19 +246,19 @@ public class WorkService {
 	}
 
 	public void assignmentUpdated(Assignment assn) {
-		theChanges.changed(new OrgGroupedWork(assn.getId().getJob().getOrganization().getId(), ProtoAssignment.of(assn)));
+		theChanges.changed(new OrgGroupedWork(assn.getId().getJob().getOrganization().getId(), ApiAssignment.of(assn)));
 	}
 
-	public EntityChangeSet.ChangeSet<ProtoAssignment> getChanges(long orgId, long lastKnownChange) {
+	public EntityChangeSet.ChangeSet<ApiAssignment> getChanges(long orgId, long lastKnownChange) {
 		return theChanges.getChanges(lastKnownChange, assn -> assn.orgId == orgId, assn -> assn.work);
 	}
 
 	static class OrgGroupedWork {
 		final long orgId;
 		final BinaryId id;
-		final ProtoAssignment work;
+		final ApiAssignment work;
 
-		public OrgGroupedWork(long orgId, ProtoAssignment work) {
+		public OrgGroupedWork(long orgId, ApiAssignment work) {
 			this.orgId = orgId;
 			id = new BinaryId(work.userId(), work.jobId());
 			this.work = work;

@@ -25,7 +25,7 @@ public class UploadDataController {
 	@PostMapping(value = "/upload", consumes = "multipart/form-data")
 	public void uploadBackup(@AuthenticationPrincipal Jwt user, @RequestParam(required = true) long orgId,
 		@RequestParam(required = true) MultipartFile file) {
-		Membership membership = theMembershipSvc.getOrganization(user.getClaimAsString("email"), orgId);
+		Membership membership = theMembershipSvc.getMe(user, orgId);
 		if (!membership.isManager())
 			throw new UnsupportedOperationException("You do not have permission to upload a backup for this organization");
 		theUploadService.uploadBackup(membership.getId().getOrganization(), () -> file.getResource().getInputStream());

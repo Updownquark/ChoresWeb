@@ -1,6 +1,6 @@
 package org.quark.misc.choresweb.ctl;
 
-import org.quark.misc.choresweb.api.ProtoMembership;
+import org.quark.misc.choresweb.api.ApiMembership;
 import org.quark.misc.choresweb.entities.Membership;
 import org.quark.misc.choresweb.svc.ModifyWorkerCommand;
 import org.quark.misc.choresweb.svc.OrganizationService;
@@ -31,44 +31,44 @@ public class UsersController {
 	}
 
 	@GetMapping("/by-org/{orgId}")
-	public EntityChangeSet.ChangeSet<ProtoMembership> getMembers(@AuthenticationPrincipal Jwt user,
+	public EntityChangeSet.ChangeSet<ApiMembership> getMembers(@AuthenticationPrincipal Jwt user,
 		@PathVariable(required = true) long orgId) {
-		Membership me = theMembershipSvc.getOrganization(user.getClaimAsString("email"), orgId);
+		Membership me = theMembershipSvc.getMe(user, orgId);
 		return theUserSvc.getApiMembers(me);
 	}
 
 	@GetMapping("/changes/{orgId}")
-	public EntityChangeSet.ChangeSet<ProtoMembership> getMemberChanges(@AuthenticationPrincipal Jwt user,
+	public EntityChangeSet.ChangeSet<ApiMembership> getMemberChanges(@AuthenticationPrincipal Jwt user,
 		@PathVariable(required = true) long orgId, @RequestParam(required = true) long lastKnownChange) {
-		theMembershipSvc.getOrganization(user.getClaimAsString("email"), orgId); // Ensure the user has access
+		theMembershipSvc.getMe(user, orgId); // Ensure the user has access
 		return theUserSvc.getChanges(orgId, lastKnownChange);
 	}
 
 	@PostMapping("/add")
-	public EntityChangeSet.ChangeSet<ProtoMembership> addMember(@AuthenticationPrincipal Jwt user, @RequestBody AddMember command,
+	public EntityChangeSet.ChangeSet<ApiMembership> addMember(@AuthenticationPrincipal Jwt user, @RequestBody AddMember command,
 		@RequestParam(required = true) long lastKnownChange) {
-		Membership me = theMembershipSvc.getOrganization(user.getClaimAsString("email"), command.organization());
-		theUserSvc.addWorker(me, command.userEmail());
+		Membership me = theMembershipSvc.getMe(user, command.orgId());
+		theUserSvc.addWorker(me, command.userEmail(), null);
 		return theUserSvc.getChanges(me.getId().getOrganization().getId(), lastKnownChange);
 	}
 
 	@PostMapping("/modify")
-	public EntityChangeSet.ChangeSet<ProtoMembership> modifyMember(@AuthenticationPrincipal Jwt user,
+	public EntityChangeSet.ChangeSet<ApiMembership> modifyMember(@AuthenticationPrincipal Jwt user,
 		@RequestBody ModifyWorkerCommand command, @RequestParam(required = true) long lastKnownChange) {
-		Membership me = theMembershipSvc.getOrganization(user.getClaimAsString("email"), command.orgId());
+		Membership me = theMembershipSvc.getMe(user, command.orgId());
 		theUserSvc.modifyWorker(me, command);
 		return theUserSvc.getChanges(me.getId().getOrganization().getId(), lastKnownChange);
 	}
 
 	@DeleteMapping
-	public EntityChangeSet.ChangeSet<ProtoMembership> removeMember(@AuthenticationPrincipal Jwt user, @RequestBody RemoveMember command,
+	public EntityChangeSet.ChangeSet<ApiMembership> removeMember(@AuthenticationPrincipal Jwt user, @RequestBody RemoveMember command,
 		@RequestParam(required = true) long lastKnownChange) {
-		Membership me = theMembershipSvc.getOrganization(user.getClaimAsString("email"), command.organization());
-		theUserSvc.removeWorker(me, command.user());
+		Membership me = theMembershipSvc.getMe(user, command.orgId());
+		theUserSvc.removeWorker(me, command.userId());
 		return theUserSvc.getChanges(me.getId().getOrganization().getId(), lastKnownChange);
 	}
 
-	public record AddMember(long organization, @JsonAlias("user-email") String userEmail) {}
+	public record AddMember(long orgId, @JsonAlias("user-email") String userEmail) {}
 
-	public record RemoveMember(long organization, long user) {}
+	public record RemoveMember(long orgId, long userId) {}
 }

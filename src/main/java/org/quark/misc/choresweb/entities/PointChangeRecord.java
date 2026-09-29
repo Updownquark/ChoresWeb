@@ -20,7 +20,7 @@ import lombok.Setter;
 
 @Entity
 @Table(name = "point_change_record")
-public class PointChangeRecord {
+public class PointChangeRecord implements Comparable<PointChangeRecord> {
 	@Id
 	@GeneratedValue(strategy = GenerationType.IDENTITY)
 	@Getter
@@ -119,6 +119,14 @@ public class PointChangeRecord {
 		this.quantity = quantity;
 		valueOrRate = resource.getRate();
 		pointChange = (int) Math.round(quantity * valueOrRate);
+	}
+
+	@Override
+	public int compareTo(PointChangeRecord o) {
+		int comp = time.compareTo(o.time);
+		if (comp == 0)
+			comp = Long.compare(id, o.id);
+		return comp;
 	}
 
 	@Override

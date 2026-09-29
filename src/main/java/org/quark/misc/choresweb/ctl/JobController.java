@@ -2,14 +2,13 @@ package org.quark.misc.choresweb.ctl;
 
 import java.util.Collections;
 import java.util.Set;
-import java.util.stream.Collectors;
 
-import org.qommons.StringUtils;
-import org.quark.misc.choresweb.api.ProtoJob;
+import org.quark.misc.choresweb.api.ApiJob;
 import org.quark.misc.choresweb.entities.Job;
 import org.quark.misc.choresweb.entities.Membership;
 import org.quark.misc.choresweb.svc.JobService;
 import org.quark.misc.choresweb.svc.OrganizationService;
+import org.quark.misc.choresweb.util.ChoresWebUtils;
 import org.quark.misc.choresweb.util.EntityChangeSet;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -33,27 +32,27 @@ public class JobController {
 	}
 
 	@GetMapping("/by-org/{orgId}")
-	public EntityChangeSet.ChangeSet<ProtoJob> getJobs(@AuthenticationPrincipal Jwt user, @PathVariable("orgId") long orgId) {
+	public EntityChangeSet.ChangeSet<ApiJob> getJobs(@AuthenticationPrincipal Jwt user, @PathVariable("orgId") long orgId) {
 		System.out.println("Getting " + orgId + " jobs");
-		return theJobService.getApiJobs(theMembershipSvc.getOrganization(user.getClaimAsString("email"), orgId));
+		return theJobService.getApiJobs(theMembershipSvc.getMe(user, orgId));
 	}
 
 	@GetMapping("/{id}")
-	public ProtoJob getJob(@AuthenticationPrincipal Jwt user, @RequestParam(required = true) long orgId, @PathVariable("orgId") long id) {
-		return ProtoJob.of(theJobService.getById(theMembershipSvc.getOrganization(user.getClaimAsString("email"), orgId), id));
+	public ApiJob getJob(@AuthenticationPrincipal Jwt user, @RequestParam(required = true) long orgId, @PathVariable("orgId") long id) {
+		return ApiJob.of(theJobService.getById(theMembershipSvc.getMe(user, orgId), id));
 	}
 
 	@GetMapping("/changes/{orgId}")
-	public EntityChangeSet.ChangeSet<ProtoJob> getJobChanges(@AuthenticationPrincipal Jwt user, @PathVariable("orgId") long orgId,
+	public EntityChangeSet.ChangeSet<ApiJob> getJobChanges(@AuthenticationPrincipal Jwt user, @PathVariable("orgId") long orgId,
 		@RequestParam(required = true) long lastKnownChange) {
-		theMembershipSvc.getOrganization(user.getClaimAsString("email"), orgId); // Ensure the user has access
+		theMembershipSvc.getMe(user, orgId); // Ensure the user has access
 		return theJobService.getChanges(orgId, lastKnownChange);
 	}
 
 	@PutMapping
-	public EntityChangeSet.ChangeSet<ProtoJob> addOrModifyJob(@AuthenticationPrincipal Jwt user,
+	public EntityChangeSet.ChangeSet<ApiJob> addOrModifyJob(@AuthenticationPrincipal Jwt user,
 		@RequestParam(required = true) long lastKnownChange, JobAddOrMod action) {
-		Membership membership = theMembershipSvc.getOrganization(user.getClaimAsString("email"), action.orgId());
+		Membership membership = theMembershipSvc.getMe(user, action.orgId());
 		if (action.jobId != null) { // Modify a job
 			theJobService.modifyJob(membership, action.jobId, job -> {
 				boolean mod = false;
@@ -106,15 +105,10 @@ public class JobController {
 				return mod;
 			});
 		} else { // Add a job
-			String newName = action.name();
-			if (newName == null)
-				newName = "A Job"; // So the new job is at the top, easy to find
-			Set<String> jobNames = theJobService.getJobs(membership).stream()//
-				.map(Job::getName)//
-				.collect(Collectors.toSet());
-			String jobName = StringUtils.getNewItemName(jobNames::contains, newName, StringUtils.SIMPLE_DUPLICATES);
+			String newName = ChoresWebUtils.getNewName(theJobService.getJobs(membership), 60, //
+				action.name(), "A Job"); // So the new job is at the top, easy to find
 			theJobService.createJob(membership, newJob -> {
-				newJob.setName(jobName);
+				newJob.setName(newName);
 				if (action.active() != null)
 					newJob.setActive(action.active());
 				else
@@ -139,12 +133,12 @@ public class JobController {
 	}
 
 	@DeleteMapping("/{id}")
-	public EntityChangeSet.ChangeSet<ProtoJob> deleteJob(@AuthenticationPrincipal Jwt user, long id,
+	public EntityChangeSet.ChangeSet<ApiJob> deleteJob(@AuthenticationPrincipal Jwt user, long id,
 		@RequestParam(required = true) long lastKnownChange) {
 		Job job = theJobService.getById(null, id);
 		if (job == null)
 			return new EntityChangeSet.ChangeSet<>(lastKnownChange, Collections.emptyList());
-		Membership membership = theMembershipSvc.getOrganization(user.getClaimAsString("email"), job.getOrganization().getId());
+		Membership membership = theMembershipSvc.getMe(user, job.getOrganization().getId());
 		theJobService.deleteJob(membership, id);
 		return theJobService.getChanges(job.getOrganization().getId(), lastKnownChange);
 	}

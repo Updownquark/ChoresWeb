@@ -8,7 +8,7 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 
 import jakarta.validation.constraints.NotNull;
 
-public record ProtoOrg(long id, @NotNull String name, Instant lastActive) {
+public record ApiOrg(long id, @NotNull String name, Instant lastActive) {
 	public long id() {
 		return id;
 	}
@@ -23,7 +23,7 @@ public record ProtoOrg(long id, @NotNull String name, Instant lastActive) {
 		return lastActive;
 	}
 
-	public static ProtoOrg of(Organization dbOrg) {
-		return new ProtoOrg(dbOrg.getId(), dbOrg.getName(), dbOrg.getLastActive());
+	public static ApiOrg of(Organization dbOrg) {
+		return new ApiOrg(dbOrg.getId(), dbOrg.getName(), dbOrg.getLastActive());
 	}
 }

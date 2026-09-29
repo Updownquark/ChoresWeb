@@ -36,9 +36,9 @@ import org.quark.misc.choresweb.repos.MembershipRepo;
 import org.quark.misc.choresweb.repos.PointChangeRecordRepo;
 import org.quark.misc.choresweb.repos.PointResourceRepo;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import jakarta.persistence.EntityManager;
-import jakarta.transaction.Transactional;
 
 @Service
 public class UploadDataService {
@@ -48,23 +48,25 @@ public class UploadDataService {
 	private final UserService theUserSvc;
 	private final PointResourceService theResourceSvc;
 	private final WorkService theWorkSvc;
+	private final PointHistoryService theHistorySvc;
+	private final PointChangeRecordRepo theHistoryRepo;
 	private final AssignmentRepo theAssnRepo;
 	private final PointResourceRepo theResourceRepo;
-	private final PointChangeRecordRepo theHistoryRepo;
 	private final EntityManager entityManager;
 
 	public UploadDataService(JobRepo jobRepo, MembershipRepo membershipRepo, JobService jobService, UserService userSvc,
-		PointResourceService resourceSvc, WorkService workSvc, AssignmentRepo assnRepo, PointResourceRepo resourceRepo,
-		PointChangeRecordRepo historyRepo, EntityManager entityManager) {
+		PointResourceService resourceSvc, WorkService workSvc, PointHistoryService historySvc, PointChangeRecordRepo historyRepo,
+		AssignmentRepo assnRepo, PointResourceRepo resourceRepo, EntityManager entityManager) {
 		theJobRepo = jobRepo;
 		theMembershipRepo = membershipRepo;
 		theJobService = jobService;
 		theUserSvc = userSvc;
 		theResourceSvc = resourceSvc;
 		theWorkSvc = workSvc;
+		theHistorySvc = historySvc;
+		theHistoryRepo = historyRepo;
 		theAssnRepo = assnRepo;
 		theResourceRepo = resourceRepo;
-		theHistoryRepo = historyRepo;
 		this.entityManager = entityManager;
 	}
 
@@ -266,17 +268,13 @@ public class UploadDataService {
 						line.get(5, long.class), line.get(6, int.class), line.get(7, double.class), 1);
 					newPCRs.add(pcr);
 					if (newPCRs.size() >= 100) {
-						theHistoryRepo.saveAll(newPCRs);
-						for (PointChangeRecord pcr2 : newPCRs)
-							entityManager.detach(pcr2);
+						theHistorySvc.historyAdded(newPCRs);
 						newPCRs.clear();
 					}
 				}
 			}
 			if (!newPCRs.isEmpty()) {
-				theHistoryRepo.saveAll(newPCRs);
-				for (PointChangeRecord pcr2 : newPCRs)
-					entityManager.detach(pcr2);
+				theHistorySvc.historyAdded(newPCRs);
 				newPCRs.clear();
 			}
 			System.out.println("\t\t" + addedPCRs + " added, " + preExisting + " pre-existing");
