@@ -100,6 +100,7 @@ public class UploadDataService {
 					.with("maxLevel", false, s -> s.equals("null") ? 100 : Integer.valueOf(s))//
 					.with("points", false, s -> Integer.valueOf(s))//
 					.with("priority", false, s -> Integer.valueOf(s))//
+					.with("lastDone", false, s -> TimeUtils.parseInstant(s, true, true, teo -> teo.localTime()))//
 				;
 				for (var line = typedParser.parseNextLine(); line != null; line = typedParser.parseNextLine()) {
 					String name = line.getValue2();
@@ -113,6 +114,7 @@ public class UploadDataService {
 						job.setMaxLevel(line.get(6, Integer.class));
 						job.setValue(line.get(7, int.class));
 						job.setPriority(line.get(8, int.class));
+						job.setLastDone(line.get(9, Instant.class));
 						newJobs.add(job);
 					} else
 						preExisting++;

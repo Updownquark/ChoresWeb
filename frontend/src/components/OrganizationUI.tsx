@@ -97,8 +97,8 @@ const OrganizationUI: React.FC<OrgUIParams> =({org, api})=>{
 		</Tabs>
 		<AssignmentsUI org={org} api={api} visible={selectedTab==0} />
 		<WorkersUI org={org} api={api} visible={selectedTab==1} />
-		<JobsUI org={org} api={api} visible={selectedTab==1} />
-		<ResourcesUI org={org} api={api} visible={selectedTab==1} />
+		<JobsUI org={org} api={api} visible={selectedTab==2} />
+		<ResourcesUI org={org} api={api} visible={selectedTab==3} />
 	</Box>
 };
 

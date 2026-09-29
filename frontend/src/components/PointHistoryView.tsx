@@ -3,7 +3,7 @@ import Membership from "../values/Membership";
 import { useEffect, useState } from "react";
 import ValidatedTextField from "./util/ValidatedTextField";
 import PointChangeRecord from "../values/PointChangeRecord";
-import { historyService, jobService, resourcesService } from "../services/services";
+import { historyService, jobService, memberService, resourcesService } from "../services/services";
 import ArrowBackIos from "@mui/icons-material/ArrowBackIos";
 import ArrowForwardIos from "@mui/icons-material/ArrowForwardIos";
 import DeleteIcon from "@mui/icons-material/Delete";
@@ -40,7 +40,8 @@ const PointHistoryView: React.FC<PointHistoryViewProps>=({org, userId, jobId, re
 	// Listen for changes
 	useEffect(()=>{
 		if(visible){
-			historyService.getHistoryCount(org, userId, jobId, resourceId).then(newSize=>{
+			historyService.getHistoryCount(org, userId, jobId, resourceId)
+			.then(newSize=>{
 				setHistorySize(newSize);
 				setPageCount(Math.ceil(newSize/pageSize));
 				if(pageNumber!=0)
@@ -118,7 +119,7 @@ const PointHistoryView: React.FC<PointHistoryViewProps>=({org, userId, jobId, re
 		timeStyle: "medium",
 	});
 
-	const printQuantity=(item: PointChangeRecord, unit: string): string => {
+	const printQuantity=(item: PointChangeRecord, unit?: string): string => {
 		if("$"== unit)
 			return unit+item.quantity.toFixed(2);
 		else
@@ -132,7 +133,7 @@ const PointHistoryView: React.FC<PointHistoryViewProps>=({org, userId, jobId, re
 		Page:&nbsp;
 		<IconButton
 			disabled={loading || pageNumber==0}
-			onChange={(()=>setPageNumber(pageNumber-1))}>
+			onClick={(()=>setPageNumber(pageNumber-1))}>
 			<ArrowBackIos />
 		</IconButton>
 		<ValidatedTextField
@@ -152,7 +153,7 @@ const PointHistoryView: React.FC<PointHistoryViewProps>=({org, userId, jobId, re
 		&nbsp;
 		<IconButton
 			disabled={loading || pageNumber+1>=pageCount}
-			onChange={(()=>setPageNumber(pageNumber-1))}>
+			onClick={(()=>setPageNumber(pageNumber+1))}>
 			<ArrowForwardIos />
 		</IconButton>
 		of {pageCount} ({historySize} items)
@@ -180,13 +181,16 @@ const PointHistoryView: React.FC<PointHistoryViewProps>=({org, userId, jobId, re
 			</IconButton>
 		</Box>
 		: null;
+	const showChangeIds=true;
 	const table=<TableContainer component={Paper}>
 		<Table size="small">
 			<TableHead>
 				<TableRow>
+					{showChangeIds ? <TableCell>Change ID</TableCell> : null}
 					<TableCell>Date/Time</TableCell>
-					<TableCell>Type</TableCell>
-					<TableCell>Job/Resource</TableCell>
+					{(jobId || resourceId) ? null : <TableCell>Type</TableCell>}
+					{(jobId || resourceId) ? null : <TableCell>Job/Resource</TableCell>}
+					{userId ? null : <TableCell>Worker</TableCell>}
 					<TableCell>Amount</TableCell>
 					<TableCell>Points Before</TableCell>
 					<TableCell>Point Change</TableCell>
@@ -196,21 +200,26 @@ const PointHistoryView: React.FC<PointHistoryViewProps>=({org, userId, jobId, re
 			<TableBody>
 				{history.map(item=>{
 					let changeSource: {name: string, unit?: string} | null = null;
-					switch(item.changeSourceName){
-						case "Job":
-						case "Work":
-							changeSource=jobService.getById(item.changeSourceId);
-							break;
-						case "Resource":
-						case "Redeemed":
-							changeSource=resourcesService.getById(item.changeSourceId);
-							break;
+					if(!jobId && !resourceId){
+						switch(item.changeSourceName){
+							case "Job":
+							case "Work":
+								changeSource=jobService.getById(item.changeSourceId);
+								break;
+							case "Resource":
+							case "Redeemed":
+								changeSource=resourcesService.getById(item.changeSourceId);
+								break;
+						}
 					}
 					const changeSourceName=changeSource?.name ?? item.changeSourceName;
+					const workerName=userId ? null : memberService.getById(item.userId)?.name;
 					return <TableRow key={item.id} onClick={e=>selectionClick(item.id, e.ctrlKey, e.shiftKey)}>
+						{showChangeIds ? <TableCell>{item.id}</TableCell> : null}
 						<TableCell>{myDateFormat.format(new Date(item.time))}</TableCell>
-						<TableCell>{item.changeType}</TableCell>
-						<TableCell>{changeSourceName}</TableCell>
+						{(jobId || resourceId) ? null : <TableCell>{item.changeType}</TableCell>}
+						{(jobId || resourceId) ? null : <TableCell>{changeSourceName}</TableCell>}
+						{userId ? null : <TableCell>{workerName}</TableCell>}
 						<TableCell>{printQuantity(item, changeSource?.unit)}</TableCell>
 						<TableCell>{item.beforePoints}</TableCell>
 						<TableCell>{item.pointChange}</TableCell>

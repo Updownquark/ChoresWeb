@@ -9,15 +9,16 @@ interface HistoryChanges{
 	lastChangeTime: number;
 	users: readonly number[];
 	jobs: readonly number [];
+	count: number;
 }
 
 class HistoryChangeListener{
 	userId: number | undefined;
 	jobId: number | undefined;
 	resourceId: number | undefined;
-	listener: ()=>void;
+	listener: (sizeChange: number)=>void;
 
-	constructor(userId: number | undefined, jobId: number | undefined, resourceId: number | undefined, listener: ()=>void){
+	constructor(userId: number | undefined, jobId: number | undefined, resourceId: number | undefined, listener: (sizeChange: number)=>void){
 		this.userId=userId;
 		this.jobId=jobId;
 		this.resourceId=resourceId;
@@ -76,7 +77,7 @@ class PointHistoryService{
 		})).data;
 	}
 
-	public onChange(userId: number | undefined, jobId: number | undefined, resourceId: number | undefined, listener: ()=>void): ()=>void {
+	public onChange(userId: number | undefined, jobId: number | undefined, resourceId: number | undefined, listener: (sizeChange: number)=>void): ()=>void {
 		const hcl=new HistoryChangeListener(userId, jobId, resourceId, listener);
 		this._listeners.push(hcl);
 		return ()=>{
@@ -101,6 +102,7 @@ class PointHistoryService{
 
 	private applyChanges(changes: HistoryChanges){
 		this._lastChangeTime=changes.lastChangeTime;
+		let delta=0;
 		for(const listener of this._listeners){
 			let applies=false;
 			if(listener.userId && Utils.binarySearch(changes.users, u=>listener.userId!-u)>=0)
@@ -108,6 +110,7 @@ class PointHistoryService{
 			if(!applies && listener.jobId && Utils.binarySearch(changes.jobs, j=>listener.jobId!-j)>=0)
 				applies=true;
 			if(applies)
+				delta+=listen
 				listener.listener();
 		}
 	}

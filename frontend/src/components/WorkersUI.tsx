@@ -40,7 +40,7 @@ const JobsUI: React.FC<ChoresTabParams> = ({api, org, visible})=>{
 	const addWorker=()=>{
 		const email=getAddWorkerEmail();
 		memberService.modify("POST", "/api/members/add", {
-			ordId: org.organization!.id,
+			orgId: org.organization!.id,
 			userEmail: email,
 		}).then(()=>{
 			for(const worker of workers){
@@ -203,7 +203,7 @@ const JobsUI: React.FC<ChoresTabParams> = ({api, org, visible})=>{
 				<TableBody>
 					{workers.map(worker=>{
 						const editing=worker.member?.id==editWorker?.member?.id;
-						const nameEditable=worker.manager || worker.member!.id==org.member?.id;
+						const nameEditable=org.manager || worker.member!.id==org.member?.id;
 						const cellStyle= {backgroundColor: editing ? "lightblue" : ""};
 						return <TableRow key={worker.member!.id} onClick={e=>{
 							setEditWorker(worker);
@@ -355,9 +355,9 @@ const JobsUI: React.FC<ChoresTabParams> = ({api, org, visible})=>{
 							</span>
 						</Tooltip>
 					</Box>
-					<PointHistoryView org={org} userId={editWorker?.member?.id} visible={selectedTab==1 && Boolean(editWorker)} />
+					<PointHistoryView org={org} userId={editWorker?.member?.id} visible={visible && selectedTab==1 && !!editWorker} />
 				</>
-				: null /*<PointHistoryView org={org} userId={editWorker?.member?.id} visible={Boolean(editWorker)} />*/
+				: <PointHistoryView org={org} userId={editWorker?.member?.id} visible={visible && !!editWorker} />
 			}
 		</Box>
 	</Box>

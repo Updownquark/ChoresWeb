@@ -1,5 +1,6 @@
 package org.quark.misc.choresweb.api;
 
+import java.time.Instant;
 import java.util.Set;
 
 import org.quark.misc.choresweb.entities.Job;
@@ -7,7 +8,7 @@ import org.quark.misc.choresweb.entities.Job;
 import com.fasterxml.jackson.annotation.JsonInclude;
 
 public record ApiJob(long id, String name, int value, int minLevel, int maxLevel, Set<String> inclusionLabels,
-	Set<String> exclusionLabels, int priority, boolean active, boolean deleted) {
+	Set<String> exclusionLabels, int priority, boolean active, Instant lastDone, boolean deleted) {
 
 	public long id() {
 		return id;
@@ -48,6 +49,10 @@ public record ApiJob(long id, String name, int value, int minLevel, int maxLevel
 		return active;
 	}
 
+	public Instant lastDone() {
+		return lastDone;
+	}
+
 	public boolean deleted() {
 		return deleted;
 	}
@@ -55,10 +60,10 @@ public record ApiJob(long id, String name, int value, int minLevel, int maxLevel
 	public static ApiJob of(Job job) {
 		return new ApiJob(job.getId(), job.getName(), job.getValue(), job.getMinLevel(), job.getMaxLevel(), //
 			ApiMembership.splitLabels(job.getInclusionLabels()), ApiMembership.splitLabels(job.getExclusionLabels()), //
-			job.getPriority(), job.isActive(), false);
+			job.getPriority(), job.isActive(), job.getLastDone(), false);
 	}
 
 	public static ApiJob deleted(long jobId) {
-		return new ApiJob(jobId, null, 0, 0, 0, null, null, 0, false, true);
+		return new ApiJob(jobId, null, 0, 0, 0, null, null, 0, false, null, true);
 	}
 }

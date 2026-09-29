@@ -49,7 +49,7 @@ public class PointHistoryService {
 		if (jobId != null && resourceId != null)
 			throw new IllegalArgumentException("jobId and resourceId may not both be specified");
 		long orgId = me.getId().getOrganization().getId();
-		Pageable page = PageRequest.of(pageNumber, pageSize, Sort.by("id").descending());
+		Pageable page = PageRequest.of(pageNumber, pageSize, Sort.by("time", "id").descending());
 		Slice<PointChangeRecord.FullPcrDto> data;
 		if (userId != null) {
 			if (jobId != null)

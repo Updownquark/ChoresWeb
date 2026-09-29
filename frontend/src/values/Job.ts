@@ -9,6 +9,7 @@ interface Job{
 	exclusionLabels: readonly string [];
 	priority: number;
 	active: boolean;
+	lastDone: number | null;
 	deleted: boolean;
 }
 
