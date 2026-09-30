@@ -2,8 +2,6 @@ package org.quark.misc.choresweb.ctl;
 
 import java.util.Collections;
 import java.util.List;
-import java.util.Set;
-import java.util.stream.Collectors;
 
 import org.quark.misc.choresweb.api.ApiMembership;
 import org.quark.misc.choresweb.api.ApiPointResource;
@@ -101,9 +99,6 @@ public class PointResourceController {
 		} else { // Add a resource
 			String newName = ChoresWebUtils.getNewName(theResourceService.getResources(membership.getId().getOrganization()), 60, //
 				action.name(), "A Resource"); // So the new resource is at the top, easy to find
-			Set<String> rsrcNames = theResourceService.getResources(membership.getId().getOrganization()).stream()//
-				.map(PointResource::getName)//
-				.collect(Collectors.toSet());
 
 			theResourceService.createResource(membership, newRsrc -> {
 				newRsrc.setName(newName);

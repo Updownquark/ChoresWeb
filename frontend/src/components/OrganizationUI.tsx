@@ -18,11 +18,21 @@ interface OrgUIParams{
 }
 
 const OrganizationUI: React.FC<OrgUIParams> =({org, api})=>{
+	const getStoredSelectedTab=(): number =>{
+		const selectedTabStr=sessionStorage.getItem("mainTab");
+		return selectedTabStr ? parseInt(selectedTabStr) : 0;
+	}
+
 	const [orgName, setOrgName] = useState(org.organization!.name);
 	const [editingName, setEditingName]=useState(false);
-	const [selectedTab, setSelectedTab]=useState(0);
+	const [selectedTab, _setSelectedTab]=useState(getStoredSelectedTab());
 
 	const fileInputRef = useRef<HTMLInputElement>(null);
+
+	const setSelectedTab=(tab: number)=>{
+		_setSelectedTab(tab);
+		sessionStorage.setItem("mainTab", tab.toString());
+	}
 
 	const uploadBackupData=async (event: React.ChangeEvent<HTMLInputElement>)=>{
 		const files=event.target.files;
@@ -67,17 +77,22 @@ const OrganizationUI: React.FC<OrgUIParams> =({org, api})=>{
 							return null;
 					}} onBlur={e=>setEditingName(false)}
 					autoFocus />
-					<IconButton onClick={e=>setEditingName(false)}>
-						<CancelIcon />
-					</IconButton>
+					&nbsp;&nbsp;
+					<Tooltip title="Cancel name editing">
+						<IconButton onClick={e=>setEditingName(false)}>
+							<CancelIcon />
+						</IconButton>
+					</Tooltip>
 				</>
 			:	<>
 					<h3>{orgName}</h3>
+					&nbsp;&nbsp;
 					<IconButton onClick={e=>setEditingName(true)}>
 						<EditIcon />
 					</IconButton>
 					{/* A delete button should go here when I'm up to getting confirmation working */}
 					{org.manager ? <>
+						&nbsp;&nbsp;
 						<input type="file" ref={fileInputRef} onChange={uploadBackupData} style={{display: "none"}} />
 						<Tooltip title="Upload existing ChoreChamp data">
 							<IconButton onClick={e=>fileInputRef.current?.click()}>

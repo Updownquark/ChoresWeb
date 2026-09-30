@@ -1,5 +1,4 @@
-import axios from "axios";
-import { LifeCycleService } from "./LifeCycleService";
+import LifeCycleService from "./LifeCycleService";
 import DemoBackend from "./Backend";
 import { BACKEND_API_URL } from "../config/backend";
 import JobService from "./JobService";
@@ -8,6 +7,8 @@ import AssignmentService from "./AssignmentService";
 import ResourceService from "./ResourceService";
 import PointHistoryService from "./PointHistoryService";
 import TokenAuthService from "../util/TokenAuthService";
+
+export const debug=true;
 
 export const authService=new TokenAuthService(BACKEND_API_URL);
 

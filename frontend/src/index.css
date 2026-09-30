@@ -1,111 +1,244 @@
 :root {
-  --text: #6b6375;
-  --text-h: #08060d;
-  --bg: #fff;
-  --border: #e5e4e7;
-  --code-bg: #f4f3ec;
-  --accent: #aa3bff;
-  --accent-bg: rgba(170, 59, 255, 0.1);
-  --accent-border: rgba(170, 59, 255, 0.5);
-  --social-bg: rgba(244, 243, 236, 0.5);
-  --shadow:
-    rgba(0, 0, 0, 0.1) 0 10px 15px -3px, rgba(0, 0, 0, 0.05) 0 4px 6px -2px;
+	--bg: #ffffff;
+	--text: #6b6375;
+	--text-h: #08060d;
+	--border: #e5e4e7;
+	--code-bg: #f4f3ec;
+	--accent: #aa3bff;
+	--accent-bg: rgba(170, 59, 255, 0.1);
+	--accent-border: rgba(170, 59, 255, 0.5);
+	--social-bg: rgba(244, 243, 236, 0.5);
+	--shadow:
+		rgba(0, 0, 0, 0.1) 0 10px 15px -3px, rgba(0, 0, 0, 0.05) 0 4px 6px -2px;
+	--sans: system-ui, "Segoe UI", Roboto, sans-serif;
+	--heading: system-ui, "Segoe UI", Roboto, sans-serif;
+	--mono: ui-monospace, Consolas, monospace;
 
-  --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --heading: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --mono: ui-monospace, Consolas, monospace;
-
-  font: 18px/145% var(--sans);
-  letter-spacing: 0.18px;
-  color-scheme: light dark;
-  color: var(--text);
-  background: var(--bg);
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-
-  @media (width: 100%) {
-    font-size: 16px;
-  }
+	font: 18px/145% var(--sans);
+	letter-spacing: 0.18px;
+	color-scheme: light dark;
 }
 
 @media (prefers-color-scheme: dark) {
-  :root {
-    --text: #9ca3af;
-    --text-h: #f3f4f6;
-    --bg: #16171d;
-    --border: #2e303a;
-    --code-bg: #1f2028;
-    --accent: #c084fc;
-    --accent-bg: rgba(192, 132, 252, 0.15);
-    --accent-border: rgba(192, 132, 252, 0.5);
-    --social-bg: rgba(47, 48, 58, 0.5);
-    --shadow:
-      rgba(0, 0, 0, 0.4) 0 10px 15px -3px, rgba(0, 0, 0, 0.25) 0 4px 6px -2px;
-  }
+	:root {
+		--text: #9ca3af;
+		--text-h: #f3f4f6;
+		--bg: #16171d;
+		--border: #aea0aa;
+		--code-bg: #1f2028;
+		--accent: #c084fc;
+		--accent-bg: rgba(192, 132, 252, 0.15);
+		--accent-border: rgba(192, 132, 252, 0.5);
+		--social-bg: rgba(47, 48, 58, 0.5);
+		--shadow:
+			rgba(0, 0, 0, 0.4) 0 10px 15px -3px, rgba(0, 0, 0, 0.25) 0 4px 6px -2px;
+	}
 
-  #social .button-icon {
-    filter: invert(1) brightness(2);
-  }
+	#social .button-icon {
+		filter: invert(1) brightness(2);
+	}
+
+	tr.selected td,
+	tr.selected th {
+		background-color: rgba(192, 132, 252, 0.25) !important;
+		border-bottom: 2px solid var(--accent) !important;
+	}
+}
+
+/* 🏁 FIXED: Applied theme properties directly to body element */
+body {
+	margin: 0;
+	color: var(--text);
+	background-color: var(--bg);
+	font-synthesis: none;
+	text-rendering: optimizeLegibility;
+	-webkit-font-smoothing: antialiased;
+	-moz-osx-font-smoothing: grayscale;
 }
 
 #root {
-  width: 100%;
-  max-width: 100%;
-  margin: 0 auto;
-  text-align: center;
-  border-inline: 1px solid var(--border);
-  min-height: 100svh;
-  display: flex;
-  flex-direction: column;
-  box-sizing: border-box;
-}
-
-body {
-  margin: 0;
+	width: 100%;
+	max-width: 100%;
+	margin: 0 auto;
+	text-align: center;
+	border-inline: 1px solid var(--border);
+	min-height: 100svh;
+	display: flex;
+	flex-direction: column;
+	box-sizing: border-box;
 }
 
 h1,
 h2 {
-  font-family: var(--heading);
-  font-weight: 500;
-  color: var(--text-h);
+	font-family: var(--heading);
+	font-weight: 500;
+	color: var(--text-h);
 }
 
 h1 {
-  font-size: 56px;
-  letter-spacing: -1.68px;
-  margin: 32px 0;
-  @media (width: 100%) {
-    font-size: 36px;
-    margin: 20px 0;
-  }
+	font-size: 56px;
+	letter-spacing: -1.68px;
+	margin: 32px 0;
 }
+
 h2 {
-  font-size: 24px;
-  line-height: 118%;
-  letter-spacing: -0.24px;
-  margin: 0 0 8px;
-  @media (width: 100%) {
-    font-size: 20px;
-  }
+	font-size: 24px;
+	line-height: 118%;
+	letter-spacing: -0.24px;
+	margin: 0 0 8px;
 }
+
 p {
-  margin: 0;
+	margin: 0;
+}
+
+table,
+thead,
+tbody,
+tr,
+th,
+td,
+input,
+select,
+button,
+div.MuiSelect-select {
+	background-color: var(--bg);
+	color: var(--text) !important;
+	border: 1px solid var(--border) !important;
+}
+
+.MuiTableContainer-root {
+	border: 1px solid var(--border) !important;
+	border-radius: 12px !important; /* 👈 Clean rounding applied here */
+	overflow: hidden !important;     /* 👈 Clips all background color bleed smoothly */
+	background-color: var(--bg);
+}
+
+/* 2. Clear out the outer table shell overrides */
+table {
+	width: 100%;
+	border-collapse: separate !important;
+	border-spacing: 0;
+	background-color: transparent !important;
+}
+
+thead,
+tbody,
+input,
+select,
+button,
+div.MuiSelect-select {
+	border-collapse: separate !important; /* 👈 Required for border-radius to work on tables */
+	border-spacing: 0; /* 👈 Keeps rows perfectly flush without gaps */
+	border-radius: 12px !important; /* 👈 Match this to your MUI theme radius */
+	overflow: hidden !important; /* 👈 Clips the sharp inner cell corners */
+	border: 1px solid var(--border) !important;
+}
+
+button.MuiTab-root{
+	border-radius: 0px !important;
+}
+
+table,
+thead,
+tbody,
+tr {
+	background-color: var(--bg);
+	border: none !important;
+}
+
+th,
+td {
+	background-color: var(--bg);
+	color: var(--text) !important;
+	border-bottom: 1px solid var(--border); /* 👈 Add inner grid borders horizontally */
+	border-right: 1px solid var(--border); /* 👈 Add inner grid borders vertically */
+}
+
+th:last-child, 
+td:last-child {
+	border-right: none;
+}
+tr:last-child td {
+	border-bottom: none;
+}
+
+table thead tr:first-child th:first-child {
+	border-top-left-radius: 12px !important;
+}
+table thead tr:first-child th:last-child {
+	border-top-right-radius: 12px !important;
+}
+
+/* Fallback: Only round top corners of td cells IF the table has no header at all */
+table:not(:has(thead)) tr:first-child td:first-child {
+	border-top-left-radius: 12px !important;
+}
+table:not(:has(thead)) tr:first-child td:last-child {
+	border-top-right-radius: 12px !important;
+}
+
+/* Force the bottom-left and bottom-right cells to round natively */
+table tbody tr:last-child td:first-child {
+	border-bottom-left-radius: 12px !important;
+}
+table tbody tr:last-child td:last-child {
+	border-bottom-right-radius: 12px !important;
+}
+
+tr.selected td,
+tr.selected th {
+	background-color: var(--accent-bg) !important;
+	border-bottom: 2px solid var(--accent) !important;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+	font-family: var(--heading);
+	font-weight: 500;
+	color: var(--text-h);
+	background-color: transparent !important; /* 👈 Ensures headings don't bring their own background box */
+}
+
+div.section {
+	border: 1px solid var(--border);
+}
+
+button.MuiTab-root.Mui-selected{
+	font-family: Arial, sans-serif !important; /* Otherwise the default font family overrides the font weight */
+	font-weight: 1000 !important;
+	border: 4px solid var(--border) !important;
 }
 
 code,
 .counter {
-  font-family: var(--mono);
-  display: inline-flex;
-  border-radius: 4px;
-  color: var(--text-h);
+	font-family: var(--mono);
+	display: inline-flex;
+	border-radius: 4px;
+	color: var(--text-h);
 }
 
 code {
-  font-size: 15px;
-  line-height: 135%;
-  padding: 4px 8px;
-  background: var(--code-bg);
+	font-size: 15px;
+	line-height: 135%;
+	padding: 4px 8px;
+	background: var(--code-bg);
+}
+
+/* 🏁 FIXED: Cleaned up and moved responsive typography breakpoints outside blocks */
+@media (max-width: 768px) {
+	:root {
+		font-size: 16px;
+	}
+	h1 {
+		font-size: 36px;
+		margin: 20px 0;
+	}
+	h2 {
+		font-size: 20px;
+	}
 }

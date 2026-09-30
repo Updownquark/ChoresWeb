@@ -66,6 +66,7 @@ function ValidatedTextField<T>({
 	}, []);
 
 	const setDirty = (dirty: boolean) => {
+		stateRef.current.isDirty=false;
 		setIsDirty(dirty);
 	};
 

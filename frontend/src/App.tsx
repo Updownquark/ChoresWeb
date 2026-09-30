@@ -8,8 +8,11 @@ import User from "./values/User";
 import Membership from "./values/Membership";
 import OrganizationList from "./components/OrganziationList";
 import OrganizationUI from "./components/OrganizationUI";
-import { authService, api, lifeCycle, jobService, memberService, assignmentService, resourcesService, historyService} from "./services/services";
+import { authService, api, lifeCycle, jobService, memberService, assignmentService, resourcesService, historyService, debug} from "./services/services";
 import { CustomLogin } from "./components/util/CustomLogin";
+import { LifeCycleStage } from "./services/LifeCycleService";
+
+const appName="Chore Champ";
 
 const LoadingStage = {
 	Me: "Me",
@@ -34,6 +37,8 @@ function ChoreChampApp() {
 
 	const setOrg=(org: Membership | null)=>{
 		if(org && org.organization){
+			sessionStorage.setItem("selectedOrg", org.organization!.id.toString());
+			document.title=appName+": "+org.organization!.name;
 			jobService.init(
 				"/api/jobs/by-org/"+org.organization!.id,
 				"/api/jobs/changes/"+org.organization!.id,
@@ -51,7 +56,10 @@ function ChoreChampApp() {
 				"/api/resources/changes/"+org.organization!.id,
 				lifeCycle);
 			historyService.init(org.organization!.id, lifeCycle);
-		}
+			if(!debug && lifeCycle.getStage()==LifeCycleStage.PreInit)
+				lifeCycle.start();
+		} else
+			document.title=appName;
 		_setOrg(org);
 	};
 
@@ -66,7 +74,6 @@ function ChoreChampApp() {
 		try {
 			const response = await api.get<User>("/api/me");
 			_me = response.data;
-			//TODO Start the lifecycle
 			setMe(_me);
 			if (_me.id != -1) {
 				targetLoadingStage = LoadingStage.Orgs;
@@ -85,9 +92,21 @@ function ChoreChampApp() {
 		try {
 			const response = await api.get<Membership[]>("/api/orgs");
 			const _orgs = response.data;
-			//TODO Start the lifecycle
 			setOrgs(_orgs);
-			if (!_me?.canCreateOrgs && _orgs.length == 1) setOrg(org);
+			if (!_me?.canCreateOrgs && _orgs.length == 1){
+				setOrg(org);
+			} else {
+				const orgIdStr=sessionStorage.getItem("selectedOrg");
+				if(orgIdStr){
+					const orgId=parseInt(orgIdStr);
+					for(const org of _orgs){
+						if(org.organization!.id==orgId){
+							setOrg(org);
+							break;
+						}
+					}
+				}
+			}
 		} catch (error) {
 			console.error("API Error:", error);
 			setMe(null);
@@ -206,7 +225,7 @@ function ChoreChampApp() {
 function App() {
 	return (
 		<StyledEngineProvider injectFirst>
-			{/*<ThemeProvider theme={myTheme}>*/}
+			<ThemeProvider theme={myTheme}>
 				<CssBaseline />
 				<GoogleOAuthProvider clientId={CLIENT_ID}>
 					<CustomLogin
@@ -234,7 +253,7 @@ function App() {
 						<ChoreChampApp />
 					</CustomLogin>
 				</GoogleOAuthProvider>
-			{/*</ThemeProvider>*/}
+			</ThemeProvider>
 		</StyledEngineProvider>
 	);
 }

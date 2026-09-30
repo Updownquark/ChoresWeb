@@ -38,8 +38,6 @@ import org.quark.misc.choresweb.repos.PointResourceRepo;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import jakarta.persistence.EntityManager;
-
 @Service
 public class UploadDataService {
 	private final JobRepo theJobRepo;
@@ -52,11 +50,10 @@ public class UploadDataService {
 	private final PointChangeRecordRepo theHistoryRepo;
 	private final AssignmentRepo theAssnRepo;
 	private final PointResourceRepo theResourceRepo;
-	private final EntityManager entityManager;
 
 	public UploadDataService(JobRepo jobRepo, MembershipRepo membershipRepo, JobService jobService, UserService userSvc,
 		PointResourceService resourceSvc, WorkService workSvc, PointHistoryService historySvc, PointChangeRecordRepo historyRepo,
-		AssignmentRepo assnRepo, PointResourceRepo resourceRepo, EntityManager entityManager) {
+		AssignmentRepo assnRepo, PointResourceRepo resourceRepo) {
 		theJobRepo = jobRepo;
 		theMembershipRepo = membershipRepo;
 		theJobService = jobService;
@@ -67,7 +64,6 @@ public class UploadDataService {
 		theHistoryRepo = historyRepo;
 		theAssnRepo = assnRepo;
 		theResourceRepo = resourceRepo;
-		this.entityManager = entityManager;
 	}
 
 	@Transactional

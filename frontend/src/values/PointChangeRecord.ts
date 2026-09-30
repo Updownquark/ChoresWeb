@@ -1,7 +1,7 @@
 
 interface PointChangeRecord{
 	id: number;
-	userId: number;
+	workerId: number;
 	changeType: string;
 	changeSourceId: number;
 	changeSourceName: string;

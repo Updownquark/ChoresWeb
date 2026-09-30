@@ -1,19 +1,51 @@
-import React, { useState, useSyncExternalStore } from "react";
+import React, { useEffect, useState, useSyncExternalStore } from "react";
 import ChoresTabParams from "./ChoresTabParams";
-import { jobService } from "../services/services";
+import { debug, jobService } from "../services/services";
 import Job from "../values/Job";
-import { Box, IconButton, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Tooltip } from "@mui/material";
+import { Accordion, AccordionDetails, AccordionSummary, Box, Button, Checkbox, Dialog, DialogTitle, IconButton, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Tooltip, Typography } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import DeleteIcon from "@mui/icons-material/Delete";
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import { EditableTableCell } from "./util/EditableTableCell";
 import PointHistoryView from "./PointHistoryView";
 
 const JobsUI: React.FC<ChoresTabParams> = ({api, org, visible})=>{
+	const getInitialEditJob=(): Job | null => {
+		const selectedJobStr=sessionStorage.getItem("selectedJob");
+		if(selectedJobStr){
+			return jobService.getById(parseInt(selectedJobStr));
+		}
+		return null;
+	}
+
 	const jobs = useSyncExternalStore(
 		listener=>jobService.onChange(listener),
 		()=>jobService.getAll()); // Freelance work can use inactive jobs
-	const [editJob, setEditJob] = useState<Job | null>(null);
+	const [editJob, _setEditJob] = useState<Job | null>(getInitialEditJob());
 
+	const [confirmingDelete, setConfirmingDelete] = useState(false);
+
+	const [showHistory, setShowHistory] = useState(false);
+
+	useEffect(()=>{
+		if(!visible) //Hide history when the Jobs tab is de-selected
+			setShowHistory(false);
+	}, [visible]);
+
+	useEffect(()=>{
+		const job=getInitialEditJob();
+		if(job?.id!=editJob?.id)
+			_setEditJob(job);
+	}, [jobs]);
+
+	const setEditJob=(job: Job | null)=>{
+		_setEditJob(job);
+		if(job)
+			sessionStorage.setItem("selectedJob", job.id.toString());
+		else
+			sessionStorage.removeItem("selectedJob");
+	}
+	
 	const addJob=()=>{
 		jobService.modify("PUT", "/api/jobs", {
 			orgId: org.organization!.id,
@@ -21,7 +53,11 @@ const JobsUI: React.FC<ChoresTabParams> = ({api, org, visible})=>{
 	};
 
 	const deleteJob=()=>{
-		//TODO Confirm
+		setConfirmingDelete(true);
+	}
+
+	const doDeleteJob=()=>{
+		setConfirmingDelete(false);
 		jobService.modify("DELETE", "/api/jobs", {
 			orgId: org.organization!.id,
 			jobId: editJob!.id,
@@ -89,15 +125,45 @@ const JobsUI: React.FC<ChoresTabParams> = ({api, org, visible})=>{
 		})
 	};
 
-	return <Box sx={{display: visible ? "flex" : "none", flexDirection: "column", width: "100%", height: "100%"}}>
+	return <Box sx={{
+			display: visible ? "flex" : "none",
+			flexDirection: "column",
+			width: "100%",
+			height: "100%"}}
+			className="section">
+		<Dialog open={confirmingDelete} onClose={()=>setConfirmingDelete(false)}>
+			<DialogTitle>Delete Job?</DialogTitle>
+			<Box sx={{
+				display: "flex",
+				flexDirection: "column",
+				alignItems: "start",
+				marginLeft: 2,
+				marginRight: 2,
+				marginBottom: 5,
+				}}>
+				<Typography>
+					Are you sure you want to delete job '{editJob?.name}'?<br />
+					This cannot be undone.
+				</Typography>
+				<Box sx={{width: "100%", display: "flex", flexDirection: "row", justifyContent: "center"}}>
+					<Button
+						variant="contained"
+						onClick={e=>doDeleteJob()}>
+						Delete Job
+					</Button>
+				</Box>
+			</Box>
+		</Dialog>
 		{org.manager ?
 			/* Add/Remove Jobs */
-			<Box sx={{display: visible ? "flex" : "none", flexDirection: "row"}}>
+			<Box sx={{display: "flex", flexDirection: "row"}}>
+				&nbsp;&nbsp;
 				<Tooltip title="Add a new worker">
 					<IconButton onClick={addJob}>
 						<AddIcon />
 					</IconButton>
 				</Tooltip>
+				&nbsp;&nbsp;
 				<Tooltip title={editJob==null ? "Select a worker to delete" : "Delete the selected worker"}>
 					<span>
 						<IconButton disabled={editJob==null} onClick={deleteJob}>
@@ -110,10 +176,11 @@ const JobsUI: React.FC<ChoresTabParams> = ({api, org, visible})=>{
 		}
 
 		{/* Job Table */}
-		<TableContainer component={Paper} sx={{display : visible ? "flex" : "none"}}>
+		<TableContainer component={Paper}>
 			<Table size="small">
 				<TableHead>
 					<TableRow>
+						{debug ? <TableCell><b>ID</b></TableCell> : null}
 						<TableCell><b>Name</b></TableCell>
 						<TableCell><b>Points</b></TableCell>
 						<TableCell><b>Last Done</b></TableCell>
@@ -121,6 +188,7 @@ const JobsUI: React.FC<ChoresTabParams> = ({api, org, visible})=>{
 						<TableCell><b>Max Level</b></TableCell>
 						<TableCell><b>Inclusion Labels</b></TableCell>
 						<TableCell><b>Exclusion Labels</b></TableCell>
+						<TableCell><b>Active</b></TableCell>
 					</TableRow>
 				</TableHead>
 				<TableBody>
@@ -129,8 +197,12 @@ const JobsUI: React.FC<ChoresTabParams> = ({api, org, visible})=>{
 						const nameEditable=org.manager;
 						const cellStyle= {backgroundColor: editing ? "lightblue" : ""};
 						return <TableRow key={job.id} onClick={e=>{
-							setEditJob(job);
+							if(e.ctrlKey && editJob?.id==job.id)
+								setEditJob(null);
+							else
+								setEditJob(job);
 						}}>
+							{debug ? <TableCell>{job.id}</TableCell> : null}
 							{nameEditable ? <EditableTableCell
 								sx={cellStyle}
 								value={job.name}
@@ -156,8 +228,8 @@ const JobsUI: React.FC<ChoresTabParams> = ({api, org, visible})=>{
 									onSave={newValue=>setJobPoints(job, newValue)}
 									parser={parseInt}
 									validator={v=>{
-										if(v<=0)
-											return "Job value must be positive";
+										if(v<0)
+											return "Job value cannot be negative";
 										else if(v>1000)
 											return "Job value cannot exceed 1000";
 										return null;
@@ -165,7 +237,7 @@ const JobsUI: React.FC<ChoresTabParams> = ({api, org, visible})=>{
 								:
 								<TableCell sx={cellStyle}>{job.value}</TableCell>
 							}
-							<TableCell>{job.lastDone ? myDateFormat.format(new Date(job.lastDone!)) : "Never"}</TableCell>
+							<TableCell sx={cellStyle}>{job.lastDone ? myDateFormat.format(new Date(job.lastDone!)) : "Never"}</TableCell>
 							{org.manager ?
 								<EditableTableCell
 									sx={cellStyle}
@@ -200,12 +272,35 @@ const JobsUI: React.FC<ChoresTabParams> = ({api, org, visible})=>{
 									renderer={labels=>labels ? labels.join(",") : ""} />
 								: <TableCell sx={cellStyle}>worker.labels ? worker.labels.join(",") : ""</TableCell>
 							}
+							<TableCell sx={{paddingTop: 0, paddingBottom: 0}}>
+								{org.manager ?
+									<Checkbox
+									 	sx={{paddingTop: 0, paddingBottom: 0}}
+										checked={job.active}
+										onChange={e=>setJobActive(job, e.target.checked)} />
+									:
+									<Checkbox checked={job.active} />
+								}
+							</TableCell>
 						</TableRow>;
 					})}
 				</TableBody>
 			</Table>
 		</TableContainer>
-		<PointHistoryView org={org} jobId={editJob?.id} visible={visible && !!editJob} />
+		<Accordion
+			sx={{display: editJob ? "" : "none"}}
+			expanded={showHistory}
+			onChange={(e: React.SyntheticEvent, expanded: boolean)=>setShowHistory(expanded)}>
+			<AccordionSummary expandIcon={<ExpandMoreIcon />}>
+				<Typography component="span">Job History</Typography>
+			</AccordionSummary>
+			<AccordionDetails>
+				<PointHistoryView
+					org={org}
+					jobId={editJob?.id}
+					visible={visible && showHistory && !!editJob} />
+			</AccordionDetails>
+		</Accordion>
 	</Box>
 };
 

@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -50,8 +51,9 @@ public class JobController {
 	}
 
 	@PutMapping
-	public EntityChangeSet.ChangeSet<ApiJob> addOrModifyJob(@AuthenticationPrincipal Jwt user,
-		@RequestParam(required = true) long lastKnownChange, JobAddOrMod action) {
+	public EntityChangeSet.ChangeSet<ApiJob> addOrModifyJob(@AuthenticationPrincipal Jwt user, //
+		@RequestBody JobAddOrMod action, //
+		@RequestParam(required = true) long lastKnownChange) {
 		Membership membership = theMembershipSvc.getMe(user, action.orgId());
 		if (action.jobId != null) { // Modify a job
 			theJobService.modifyJob(membership, action.jobId, job -> {

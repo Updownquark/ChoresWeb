@@ -1,9 +1,10 @@
-import React, { useState, useSyncExternalStore } from "react";
+import React, { useEffect, useState, useSyncExternalStore } from "react";
 import ChoresTabParams from "./ChoresTabParams";
-import { historyService, jobService, memberService, resourcesService } from "../services/services";
+import { debug, historyService, jobService, memberService, resourcesService } from "../services/services";
 import AddIcon from "@mui/icons-material/Add";
 import DeleteIcon from "@mui/icons-material/Delete";
-import { Box, Button, IconButton, MenuItem, Paper, Select, Tab, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Tabs, TextField, Tooltip } from "@mui/material";
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import { Accordion, AccordionDetails, AccordionSummary, Box, Button, Dialog, DialogTitle, IconButton, MenuItem, Paper, Select, Tab, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Tabs, TextField, Tooltip, Typography } from "@mui/material";
 import { EditableTableCell } from "./util/EditableTableCell";
 import ValidatedTextField from "./util/ValidatedTextField";
 import Job from "../values/Job";
@@ -18,16 +19,29 @@ interface ApiResourceUsage{
 }
 
 const JobsUI: React.FC<ChoresTabParams> = ({api, org, visible})=>{
+	const getInitialEditWorker=(): Membership | null => {
+		const selectedWorkerStr=sessionStorage.getItem("selectedWorker");
+		if(selectedWorkerStr){
+			return memberService.getById(parseInt(selectedWorkerStr));
+		}
+		return null;
+	}
+
 	const workers=useSyncExternalStore(
 		listener=>memberService.onChange(listener),
 		()=>memberService.getWorkers());
-	const [editWorker, setEditWorker] = useState<Membership | null>(null);
+	const [editWorker, _setEditWorker] = useState<Membership | null>(getInitialEditWorker());
 	const jobs = useSyncExternalStore(
 		listener=>jobService.onChange(listener),
 		()=>jobService.getAll()); // Freelance work can use inactive jobs
 	const resources = useSyncExternalStore(
 		listener=>resourcesService.onChange(listener),
 		()=>resourcesService.getAll());
+
+	const [enteringNewWorkerEmail, setEnteringNewWorkerEmail] = useState(false);
+	const [newWorkerEmail, setNewWorkerEmail] = useState("");
+
+	const [confirmingDelete, setConfirmingDelete] = useState(false);
 
 	const [freeLancePoints, setFreeLancePoints] = useState(1);
 	const [freeLanceJob, setFreeLanceJob]=useState<Job | null>(null);
@@ -37,8 +51,36 @@ const JobsUI: React.FC<ChoresTabParams> = ({api, org, visible})=>{
 	const [pointUsage]=useState(new Map<number, Map<number, number>>());
 	const [pointUsageRefresh, setPointUsageRefresh] = useState(0);
 
+	const [showHistory, setShowHistory] = useState(false);
+
+	useEffect(()=>{
+		if(!visible){ //Hide history when the Workers tab is de-selected
+			setSelectedTab(0);
+			setShowHistory(false);
+		}
+	}, [visible]);
+
+	useEffect(()=>{
+		const worker=getInitialEditWorker();
+		if(worker?.member?.id!=editWorker?.member?.id)
+			_setEditWorker(worker);
+	}, [resources]);
+
+	const setEditWorker=(worker: Membership | null)=>{
+		_setEditWorker(worker);
+		if(worker)
+			sessionStorage.setItem("selectedWorker", worker.member!.id.toString());
+		else
+			sessionStorage.removeItem("selectedWorker");
+	}
+
 	const addWorker=()=>{
-		const email=getAddWorkerEmail();
+		setNewWorkerEmail("");
+		setEnteringNewWorkerEmail(true);
+	};
+
+	const doAddWorker=(email: string)=>{
+		setEnteringNewWorkerEmail(false);
 		memberService.modify("POST", "/api/members/add", {
 			orgId: org.organization!.id,
 			userEmail: email,
@@ -51,11 +93,12 @@ const JobsUI: React.FC<ChoresTabParams> = ({api, org, visible})=>{
 			}
 		});
 	};
-	const getAddWorkerEmail=(): string=>{
-		return ""; //TODO
-	}
 	const deleteWorker=()=>{
-		//TODO Confirm
+		setConfirmingDelete(true);
+	}
+
+	const doDeleteWorker=()=>{
+		setConfirmingDelete(false);
 		memberService.modify("DELETE", "/api/members", {
 			orgId: org.organization!.id,
 			userId: editWorker!.member!.id,
@@ -169,15 +212,87 @@ const JobsUI: React.FC<ChoresTabParams> = ({api, org, visible})=>{
 		historyService.check();
 	};
 	
-	return <Box sx={{display: "flex", flexDirection: "column", width: "100%", height: "100%"}}>
+	return <Box sx={{
+		display: visible ? "flex" : "none",
+		flexDirection: "column",
+		width: "100%",
+		height: "100%",}}
+			className="section">
+		<Dialog open={enteringNewWorkerEmail} onClose={()=>setEnteringNewWorkerEmail(false)}>
+			<DialogTitle>New Worker Email</DialogTitle>
+			<Box sx={{
+				display: "flex",
+				flexDirection: "column",
+				alignItems: "start",
+				marginLeft: 2,
+				marginRight: 2,
+				marginBottom: 5,
+				}}>
+				<Typography>Enter the email address for the new worker</Typography>
+				<ValidatedTextField
+					sx={{width: "100%"}}
+					value={newWorkerEmail}
+					onChange={setNewWorkerEmail}
+					parser={s=>s}
+					validator={email=>{
+						if(!email)
+							return "Email address is required";
+						const at=email.indexOf("@");
+						if(at<=0)
+							return "Not an email address";
+						const dot=email.lastIndexOf(".");
+						if(dot<at || dot==email.length-1)
+							return "Not an email address";
+						for(const worker of workers){
+							if(worker.member!.email.toLowerCase()==email.toLowerCase())
+								return `Worker '${worker.name} has this email address`;
+						}
+						return null;
+					}}
+					label="Enter worker email address" />
+				<Box sx={{width: "100%", display: "flex", flexDirection: "row", justifyContent: "center"}}>
+					<Button
+						variant="contained"
+						onClick={e=>doAddWorker(newWorkerEmail)}
+						disabled={!newWorkerEmail.length}>
+						Add Worker
+					</Button>
+				</Box>
+			</Box>
+		</Dialog>
+		<Dialog open={confirmingDelete} onClose={()=>setConfirmingDelete(false)}>
+			<DialogTitle>Delete Worker?</DialogTitle>
+			<Box sx={{
+				display: "flex",
+				flexDirection: "column",
+				alignItems: "start",
+				marginLeft: 2,
+				marginRight: 2,
+				marginBottom: 5,
+				}}>
+				<Typography>
+					Are you sure you want to delete worker '{editWorker?.name}'?<br />
+					This cannot be undone.
+				</Typography>
+				<Box sx={{width: "100%", display: "flex", flexDirection: "row", justifyContent: "center"}}>
+					<Button
+						variant="contained"
+						onClick={e=>doDeleteWorker()}>
+						Delete Worker
+					</Button>
+				</Box>
+			</Box>
+		</Dialog>
 		{org.manager ?
 			/* Add/Remove Workers */
-			<Box sx={{display: visible ? "flex" : "none", flexDirection: "row"}}>
+			<Box sx={{display: "flex", flexDirection: "row"}}>
+				&nbsp;&nbsp;
 				<Tooltip title="Add a new worker">
 					<IconButton onClick={addWorker}>
 						<AddIcon />
 					</IconButton>
 				</Tooltip>
+				&nbsp;&nbsp;
 				<Tooltip title={editWorker==null ? "Select a worker to delete" : "Delete the selected worker"}>
 					<span>
 						<IconButton disabled={editWorker==null} onClick={deleteWorker}>
@@ -190,10 +305,11 @@ const JobsUI: React.FC<ChoresTabParams> = ({api, org, visible})=>{
 		}
 
 		{/* Worker Table */}
-		<TableContainer component={Paper} sx={{display : visible ? "flex" : "none"}}>
+		<TableContainer component={Paper}>
 			<Table size="small">
 				<TableHead>
 					<TableRow>
+						{debug ? <TableCell><b>ID</b></TableCell> : null}
 						<TableCell><b>Name</b></TableCell>
 						<TableCell><b>Points</b></TableCell>
 						<TableCell><b>Level</b></TableCell>
@@ -204,12 +320,12 @@ const JobsUI: React.FC<ChoresTabParams> = ({api, org, visible})=>{
 					{workers.map(worker=>{
 						const editing=worker.member?.id==editWorker?.member?.id;
 						const nameEditable=org.manager || worker.member!.id==org.member?.id;
-						const cellStyle= {backgroundColor: editing ? "lightblue" : ""};
-						return <TableRow key={worker.member!.id} onClick={e=>{
-							setEditWorker(worker);
-						}}>
+						return <TableRow
+							key={worker.member!.id}
+							className={editing ? "selected" : ""}
+							onClick={e=>setEditWorker(worker)}>
+							{debug ? <TableCell>{worker.member?.id}</TableCell> : null}
 							{nameEditable ? <EditableTableCell
-								sx={cellStyle}
 								value={worker.name}
 								onSave={newName=>renameWorker(worker, newName)}
 								parser={s=>s}
@@ -224,25 +340,23 @@ const JobsUI: React.FC<ChoresTabParams> = ({api, org, visible})=>{
 									}
 									return null;
 								}} />
-								: <TableCell sx={cellStyle}>{worker.name}</TableCell>
+								: <TableCell>{worker.name}</TableCell>
 							}
-							<TableCell sx={cellStyle}>{worker.points}</TableCell>
+							<TableCell>{worker.points}</TableCell>
 							{org.manager ?
 								<EditableTableCell
-									sx={cellStyle}
 									value={worker.level}
 									onSave={newLevel=>setWorkerLevel(worker, newLevel)}
 									parser={parseInt} />
-								: <TableCell sx={cellStyle}>{worker.level}</TableCell>
+								: <TableCell>{worker.level}</TableCell>
 							}
 							{org.manager ?
 								<EditableTableCell
-									sx={cellStyle}
 									value={worker.labels}
 									onSave={newLabels=>setWorkerLabels(worker, newLabels)}
 									parser={parseLabels}
 									renderer={labels=>labels ? labels.join(",") : ""} />
-								: <TableCell sx={cellStyle}>worker.labels ? worker.labels.join(",") : ""</TableCell>
+								: <TableCell>worker.labels ? worker.labels.join(",") : ""</TableCell>
 							}
 						</TableRow>;
 					})}
@@ -355,9 +469,26 @@ const JobsUI: React.FC<ChoresTabParams> = ({api, org, visible})=>{
 							</span>
 						</Tooltip>
 					</Box>
-					<PointHistoryView org={org} userId={editWorker?.member?.id} visible={visible && selectedTab==1 && !!editWorker} />
+					<PointHistoryView
+						org={org}
+						userId={editWorker?.member?.id}
+						visible={visible && selectedTab==1 && !!editWorker} />
 				</>
-				: <PointHistoryView org={org} userId={editWorker?.member?.id} visible={visible && !!editWorker} />
+				:
+				<Accordion
+					sx={{dislay: editWorker ? "" : "none"}}
+					expanded={showHistory}
+					onChange={(e: React.SyntheticEvent, expanded: boolean)=>setShowHistory(expanded)}>
+					<AccordionSummary expandIcon={<ExpandMoreIcon />}>
+						<Typography component="span">Worker History</Typography>
+					</AccordionSummary>
+					<AccordionDetails>
+						 <PointHistoryView
+						 	org={org}
+							userId={editWorker?.member?.id}
+							visible={visible && showHistory && !!editWorker} />
+					</AccordionDetails>
+				</Accordion>
 			}
 		</Box>
 	</Box>

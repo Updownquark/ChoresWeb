@@ -24,7 +24,7 @@ class DoAfterInactivity{
 	}
 }
 
-class LifeCycleService{
+export default class LifeCycleService{
 	private static readonly CLONE_TAB_DETECTION="vista_tab_";
 
 	private readonly _isNewTab: boolean;
@@ -69,6 +69,7 @@ class LifeCycleService{
 			default:
 				// Already initialized, so this should be safe
 				callback();
+				return ()=>{};
 				break;
 		}
 	}
@@ -82,6 +83,7 @@ class LifeCycleService{
 				return ()=>this._heartBeatSubscribers.delete(callback);
 			default:
 				console.warn("VISTA is not active");
+				return ()=>{};
 				break;
 		}
 	}
@@ -133,7 +135,7 @@ class LifeCycleService{
 			dai=new DoAfterInactivity(now+wait, action);
 			this._inactivityActions.set(key, dai);
 			const timeout=()=>{
-				const nextRun=dai.maybeRun();
+				const nextRun=dai!.maybeRun();
 				if(nextRun>0)
 					setTimeout(timeout, nextRun+5);
 				else
@@ -149,7 +151,7 @@ class LifeCycleService{
 		
 		this._stage=LifeCycleStage.Initializing;
 		await this.callSubscribers(this._initSubscribers);
-		this._initSubscribers=null;
+		this._initSubscribers.clear();
 		
 		this._stage=LifeCycleStage.Active;
 		
@@ -183,7 +185,7 @@ class LifeCycleService{
 		}
 		
 		this._stage=LifeCycleStage.ShuttingDown;
-		clearInterval(this._intervalId);
+		clearInterval(this._intervalId!);
 		this._intervalId=null;
 
 		for(const sub of this._shutdownSubscribers){
@@ -196,5 +198,3 @@ class LifeCycleService{
 		this._stage=LifeCycleStage.Dead;
 	}
 }
-
-export default LifeCycleService;

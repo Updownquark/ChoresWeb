@@ -3,7 +3,7 @@ import Membership from "../values/Membership";
 import { useEffect, useState } from "react";
 import ValidatedTextField from "./util/ValidatedTextField";
 import PointChangeRecord from "../values/PointChangeRecord";
-import { historyService, jobService, memberService, resourcesService } from "../services/services";
+import { debug, historyService, jobService, memberService, resourcesService } from "../services/services";
 import ArrowBackIos from "@mui/icons-material/ArrowBackIos";
 import ArrowForwardIos from "@mui/icons-material/ArrowForwardIos";
 import DeleteIcon from "@mui/icons-material/Delete";
@@ -25,14 +25,19 @@ const PointHistoryView: React.FC<PointHistoryViewProps>=({org, userId, jobId, re
 	const [history]=useState<PointChangeRecord[]>([]);
 	const [loading, setLoading] = useState(true);
 	const [refresh, setRefresh] = useState(0);
+	const [reRender, setReRender] = useState(0);
 	const [selectedItems]=useState(new Set<number>());
 	const [selectionAnchor, setSelectionAnchor]=useState(-1);
 	const [selectionRefresh, setSelectionRefresh]=useState(0);
 
 	useEffect(()=>{
 		if(visible){
+			console.log("Getting history: ", userId, jobId, resourceId);
 			historyService.getHistory(org, userId, jobId, resourceId, pageSize, pageNumber)//
-				.then(setCurrentItems)
+				.then(data=>{
+					console.log("Installing new history");
+					setCurrentItems(data);
+				})
 				.finally(()=>setLoading(false));
 		}
 	}, [visible, refresh, pageNumber, pageSize]);
@@ -40,6 +45,8 @@ const PointHistoryView: React.FC<PointHistoryViewProps>=({org, userId, jobId, re
 	// Listen for changes
 	useEffect(()=>{
 		if(visible){
+			setLoading(true);
+			console.log("Selection changed: ", userId, jobId, resourceId);
 			historyService.getHistoryCount(org, userId, jobId, resourceId)
 			.then(newSize=>{
 				setHistorySize(newSize);
@@ -63,10 +70,11 @@ const PointHistoryView: React.FC<PointHistoryViewProps>=({org, userId, jobId, re
 			if(!newItemIds.has(itemId))
 				selectedItems.delete(itemId);
 		}
+		setReRender(reRender+1);
 	}
 
 	const setPageNumber=(newPage: number)=>{
-		setPageNumber(newPage);
+		_setPageNumber(newPage);
 		setLoading(true);
 	};
 
@@ -181,16 +189,17 @@ const PointHistoryView: React.FC<PointHistoryViewProps>=({org, userId, jobId, re
 			</IconButton>
 		</Box>
 		: null;
-	const showChangeIds=true;
+	const showWorker=debug || !userId;
+	const showChangeSource=debug || !(jobId || resourceId);
 	const table=<TableContainer component={Paper}>
 		<Table size="small">
 			<TableHead>
 				<TableRow>
-					{showChangeIds ? <TableCell>Change ID</TableCell> : null}
+					{debug ? <TableCell>Change ID</TableCell> : null}
 					<TableCell>Date/Time</TableCell>
-					{(jobId || resourceId) ? null : <TableCell>Type</TableCell>}
-					{(jobId || resourceId) ? null : <TableCell>Job/Resource</TableCell>}
-					{userId ? null : <TableCell>Worker</TableCell>}
+					{showChangeSource ? <TableCell>Type</TableCell> : null}
+					{showChangeSource ? <TableCell>Job/Resource</TableCell> : null}
+					{showWorker ? <TableCell>Worker</TableCell> : null}
 					<TableCell>Amount</TableCell>
 					<TableCell>Points Before</TableCell>
 					<TableCell>Point Change</TableCell>
@@ -200,7 +209,7 @@ const PointHistoryView: React.FC<PointHistoryViewProps>=({org, userId, jobId, re
 			<TableBody>
 				{history.map(item=>{
 					let changeSource: {name: string, unit?: string} | null = null;
-					if(!jobId && !resourceId){
+					if(showChangeSource){
 						switch(item.changeSourceName){
 							case "Job":
 							case "Work":
@@ -213,13 +222,13 @@ const PointHistoryView: React.FC<PointHistoryViewProps>=({org, userId, jobId, re
 						}
 					}
 					const changeSourceName=changeSource?.name ?? item.changeSourceName;
-					const workerName=userId ? null : memberService.getById(item.userId)?.name;
+					const workerName=showWorker ? memberService.getById(item.workerId)?.name : null;
 					return <TableRow key={item.id} onClick={e=>selectionClick(item.id, e.ctrlKey, e.shiftKey)}>
-						{showChangeIds ? <TableCell>{item.id}</TableCell> : null}
+						{debug ? <TableCell>{item.id}</TableCell> : null}
 						<TableCell>{myDateFormat.format(new Date(item.time))}</TableCell>
-						{(jobId || resourceId) ? null : <TableCell>{item.changeType}</TableCell>}
-						{(jobId || resourceId) ? null : <TableCell>{changeSourceName}</TableCell>}
-						{userId ? null : <TableCell>{workerName}</TableCell>}
+						{showChangeSource ? <TableCell>{item.changeType}</TableCell> : null}
+						{showChangeSource ? <TableCell>{changeSourceName}</TableCell> : null}
+						{showWorker ? <TableCell>{workerName}</TableCell> : null}
 						<TableCell>{printQuantity(item, changeSource?.unit)}</TableCell>
 						<TableCell>{item.beforePoints}</TableCell>
 						<TableCell>{item.pointChange}</TableCell>
