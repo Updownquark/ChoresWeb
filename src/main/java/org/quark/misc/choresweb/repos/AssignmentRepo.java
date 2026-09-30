@@ -9,6 +9,7 @@ import org.quark.misc.choresweb.entities.Membership;
 import org.quark.misc.choresweb.entities.Organization;
 import org.quark.misc.choresweb.entities.User;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -16,16 +17,20 @@ public interface AssignmentRepo extends JpaRepository<Assignment, AssignmentId> 
 	@Query("FROM Assignment WHERE organization=:org")
 	List<Assignment> getAssignments(@Param("org") Organization org);
 
+	@Modifying
 	default void deleteForMember(@Param("member") Membership member) {
 		deleteByOrganizationAndWorker(member.getId().getOrganization(), member.getId().getMember());
 	}
 
 	@Query("DELETE FROM Assignment assn WHERE assn.organization=:org AND assn.id.worker=:worker")
+	@Modifying
 	void deleteByOrganizationAndWorker(Organization org, User worker);
 
 	@Query("DELETE FROM Assignment assn1 WHERE assn1.id.job=:job AND assn1.id.worker=:worker")
+	@Modifying
 	void deleteByJobAndWorker(@Param("job") Job job, @Param("worker") User worker);
 
+	@Modifying
 	void deleteByOrganization(Organization organization);
 
 	@Query("FROM Assignment assn2 WHERE assn2.id.job=:job AND assn2.id.worker=:worker")

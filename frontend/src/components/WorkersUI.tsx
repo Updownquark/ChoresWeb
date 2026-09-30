@@ -18,6 +18,15 @@ interface ApiResourceUsage{
 	notes?: string;
 }
 
+const subscribeToWorkers=memberService.onChange.bind(memberService);
+const getWorkersSnapshot=memberService.getWorkers.bind(memberService);
+
+const subscribeToJobs = jobService.onChange.bind(jobService);
+const getJobsSnapshot = jobService.getActiveJobs.bind(jobService);
+
+const subscribeToResources = resourcesService.onChange.bind(resourcesService);
+const getResourcesSnapshot = resourcesService.getAll.bind(resourcesService);
+
 const JobsUI: React.FC<ChoresTabParams> = ({api, org, visible})=>{
 	const getInitialEditWorker=(): Membership | null => {
 		const selectedWorkerStr=sessionStorage.getItem("selectedWorker");
@@ -27,16 +36,10 @@ const JobsUI: React.FC<ChoresTabParams> = ({api, org, visible})=>{
 		return null;
 	}
 
-	const workers=useSyncExternalStore(
-		listener=>memberService.onChange(listener),
-		()=>memberService.getWorkers());
+	const workers=useSyncExternalStore(subscribeToWorkers, getWorkersSnapshot);
 	const [editWorker, _setEditWorker] = useState<Membership | null>(getInitialEditWorker());
-	const jobs = useSyncExternalStore(
-		listener=>jobService.onChange(listener),
-		()=>jobService.getAll()); // Freelance work can use inactive jobs
-	const resources = useSyncExternalStore(
-		listener=>resourcesService.onChange(listener),
-		()=>resourcesService.getAll());
+	const jobs = useSyncExternalStore(subscribeToJobs, getJobsSnapshot);
+	const resources = useSyncExternalStore(subscribeToResources, getResourcesSnapshot);
 
 	const [enteringNewWorkerEmail, setEnteringNewWorkerEmail] = useState(false);
 	const [newWorkerEmail, setNewWorkerEmail] = useState("");
@@ -102,13 +105,9 @@ const JobsUI: React.FC<ChoresTabParams> = ({api, org, visible})=>{
 		memberService.modify("POST", "/api/members/add", {
 			orgId: org.organization!.id,
 			userEmail: email,
-		}).then(()=>{
-			for(const worker of workers){
-				if(worker.member!.email==email){
-					setEditWorker(worker);
-					break;
-				}
-			}
+		}).then(event=>{
+			if(event.added)
+				setEditWorker(event.added.values().next().value!);
 		});
 	};
 	const deleteWorker=()=>{

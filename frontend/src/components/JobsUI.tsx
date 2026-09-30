@@ -9,6 +9,11 @@ import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import { EditableTableCell } from "./util/EditableTableCell";
 import PointHistoryView from "./PointHistoryView";
 
+const subscribeToJobs = (listener: ()=>void)=>jobService.onChange(e=>{
+	listener();
+});
+const getJobsSnapshot = jobService.getAll.bind(jobService); // Freelance work can use inactive jobs
+
 const JobsUI: React.FC<ChoresTabParams> = ({api, org, visible})=>{
 	const getInitialEditJob=(): Job | null => {
 		const selectedJobStr=sessionStorage.getItem("selectedJob");
@@ -18,9 +23,7 @@ const JobsUI: React.FC<ChoresTabParams> = ({api, org, visible})=>{
 		return null;
 	}
 
-	const jobs = useSyncExternalStore(
-		listener=>jobService.onChange(listener),
-		()=>jobService.getAll()); // Freelance work can use inactive jobs
+	const jobs = useSyncExternalStore(subscribeToJobs, getJobsSnapshot);
 	const [editJob, _setEditJob] = useState<Job | null>(getInitialEditJob());
 
 	const [confirmingDelete, setConfirmingDelete] = useState(false);
@@ -49,6 +52,9 @@ const JobsUI: React.FC<ChoresTabParams> = ({api, org, visible})=>{
 	const addJob=()=>{
 		jobService.modify("PUT", "/api/jobs", {
 			orgId: org.organization!.id,
+		}).then(event=>{
+			if(event.added)
+				setEditJob(event.added.values().next().value!);
 		});
 	};
 
@@ -58,10 +64,7 @@ const JobsUI: React.FC<ChoresTabParams> = ({api, org, visible})=>{
 
 	const doDeleteJob=()=>{
 		setConfirmingDelete(false);
-		jobService.modify("DELETE", "/api/jobs", {
-			orgId: org.organization!.id,
-			jobId: editJob!.id,
-		}).then(()=>setEditJob(null));
+		jobService.modify("DELETE", "/api/jobs/"+editJob!.id).then(()=>setEditJob(null));
 	};
 	const renameJob=(job: Job, newName: string)=>{
 		jobService.modify("PUT", "/api/jobs", {

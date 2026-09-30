@@ -12,6 +12,7 @@ import org.quark.misc.choresweb.entities.User;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Slice;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -86,11 +87,14 @@ public interface PointChangeRecordRepo extends JpaRepository<PointChangeRecord, 
 	int getChangeSourceHistorySizeForWorker(@Param("orgId") long orgId, @Param("workerId") long workerId,
 		@Param("changeType") PointChangeRecord.PointChangeType changeType, @Param("changeSourceId") long changeSourceId);
 
+	@Modifying
 	default void deleteForMember(Membership member) {
 		deleteByOrganizationAndWorker(member.getId().getOrganization(), member.getId().getMember());
 	}
 
+	@Modifying
 	void deleteByOrganizationAndWorker(Organization org, User worker);
 
+	@Modifying
 	void deleteByOrganization(Organization organization);
 }

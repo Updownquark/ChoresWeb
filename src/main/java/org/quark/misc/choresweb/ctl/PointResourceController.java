@@ -59,8 +59,9 @@ public class PointResourceController {
 	}
 
 	@PutMapping
-	public EntityChangeSet.ChangeSet<ApiPointResource> addOrModifyResource(@AuthenticationPrincipal Jwt user,
-		@RequestParam(required = true) long lastKnownChange, ResourceAddOrMod action) {
+	public EntityChangeSet.ChangeSet<ApiPointResource> addOrModifyResource(@AuthenticationPrincipal Jwt user, //
+		@RequestBody ResourceAddOrMod action, //
+		@RequestParam(required = true) long lastKnownChange) {
 		Membership membership = theMembershipSvc.getMe(user, action.orgId());
 		boolean withRate = action.rate() != null;
 		if (withRate) {
@@ -112,12 +113,14 @@ public class PointResourceController {
 	}
 
 	@DeleteMapping("/{id}")
-	public EntityChangeSet.ChangeSet<ApiPointResource> deleteResource(@AuthenticationPrincipal Jwt user, long id,
+	public EntityChangeSet.ChangeSet<ApiPointResource> deleteResource(@AuthenticationPrincipal Jwt user, @PathVariable long id,
 		@RequestParam(required = true) long lastKnownChange) {
 		PointResource rsrc = theResourceService.getById(null, id);
 		if (rsrc == null)
 			return new EntityChangeSet.ChangeSet<>(lastKnownChange, Collections.emptyList());
 		Membership membership = theMembershipSvc.getMe(user, rsrc.getOrganization().getId());
+		if (!membership.isManager())
+			throw new UnsupportedOperationException("You do not have permission to delete jobs in this organization");
 		theResourceService.deleteResource(membership, id);
 		return theResourceService.getChanges(rsrc.getOrganization().getId(), lastKnownChange);
 	}

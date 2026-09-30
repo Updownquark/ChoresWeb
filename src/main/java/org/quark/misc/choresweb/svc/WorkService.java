@@ -150,7 +150,7 @@ public class WorkService {
 			PointChangeRecord record = new PointChangeRecord(assn.getId().getJob(), member, now, assn.getCompleted());
 			record.setNotes(assn.getNotes());
 			records.add(record);
-			theChanges.changed(new OrgGroupedWork(me.getId().getOrganization().getId(), ApiAssignment.of(assn)));
+			theChanges.changed(new OrgGroupedWork(me.getId().getOrganization().getId(), ApiAssignment.deleted(assn)));
 			if (jobs.add(assn.getId().getJob()))
 				assn.getId().getJob().setLastDone(now);
 		}
@@ -171,6 +171,8 @@ public class WorkService {
 		List<Assignment> assignments = theAssnRepo.getAssignments(me.getId().getOrganization());
 		if (assignments.isEmpty())
 			return;
+		for (Assignment assn : assignments)
+			theChanges.changed(new OrgGroupedWork(me.getId().getOrganization().getId(), ApiAssignment.deleted(assn)));
 		theAssnRepo.deleteAll(assignments);
 	}
 

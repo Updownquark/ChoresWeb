@@ -124,7 +124,7 @@ public class JobController {
 				if (action.maxLevel() != null)
 					newJob.setMaxLevel(action.maxLevel());
 				else
-					newJob.setMaxLevel(Integer.MAX_VALUE);
+					newJob.setMaxLevel(100);
 				if (action.priority() != null)
 					newJob.setPriority(action.priority());
 				if (action.value() != null)
@@ -135,12 +135,14 @@ public class JobController {
 	}
 
 	@DeleteMapping("/{id}")
-	public EntityChangeSet.ChangeSet<ApiJob> deleteJob(@AuthenticationPrincipal Jwt user, long id,
+	public EntityChangeSet.ChangeSet<ApiJob> deleteJob(@AuthenticationPrincipal Jwt user, @PathVariable long id,
 		@RequestParam(required = true) long lastKnownChange) {
 		Job job = theJobService.getById(null, id);
 		if (job == null)
 			return new EntityChangeSet.ChangeSet<>(lastKnownChange, Collections.emptyList());
 		Membership membership = theMembershipSvc.getMe(user, job.getOrganization().getId());
+		if (!membership.isManager())
+			throw new UnsupportedOperationException("You do not have permission to delete jobs in this organization");
 		theJobService.deleteJob(membership, id);
 		return theJobService.getChanges(job.getOrganization().getId(), lastKnownChange);
 	}

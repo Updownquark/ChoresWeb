@@ -34,6 +34,10 @@ public record ApiAssignment(long userId, long jobId, int completed, String notes
 			entity.getNotes(), false);
 	}
 
+	public static ApiAssignment deleted(Assignment entity) {
+		return deleted(entity.getId().getWorker().getId(), entity.getId().getJob().getId());
+	}
+
 	public static ApiAssignment deleted(long userId, long jobId) {
 		return new ApiAssignment(userId, jobId, 0, null, true);
 	}

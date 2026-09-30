@@ -9,7 +9,10 @@ import PointResource from "../values/PointResource";
 import { EditableTableCell } from "./util/EditableTableCell";
 import PointHistoryView from "./PointHistoryView";
 
-const JobsUI: React.FC<ChoresTabParams> = ({api, org, visible})=>{
+const subscribeToResources = resourcesService.onChange.bind(resourcesService);
+const getResourcesSnapshot = resourcesService.getAll.bind(resourcesService);
+
+const ResourcesUI: React.FC<ChoresTabParams> = ({api, org, visible})=>{
 	const getInitialEditResource=(): PointResource | null => {
 		const selectedRsrcStr=sessionStorage.getItem("selectedResource");
 		if(selectedRsrcStr){
@@ -18,9 +21,7 @@ const JobsUI: React.FC<ChoresTabParams> = ({api, org, visible})=>{
 		return null;
 	}
 
-	const resources = useSyncExternalStore(
-		listener=>resourcesService.onChange(listener),
-		()=>resourcesService.getAll()); // Freelance work can use inactive jobs
+	const resources = useSyncExternalStore(subscribeToResources, getResourcesSnapshot);
 	const [editResource, _setEditResource] = useState<PointResource | null>(getInitialEditResource());
 
 	const [confirmingDelete, setConfirmingDelete] = useState(false);
@@ -49,6 +50,9 @@ const JobsUI: React.FC<ChoresTabParams> = ({api, org, visible})=>{
 	const addResource=()=>{
 		resourcesService.modify("PUT", "/api/resources", {
 			orgId: org.organization!.id,
+		}).then(event=>{
+			if(event.added)
+				setEditResource(event.added.values().next().value!);
 		});
 	};
 
@@ -58,10 +62,7 @@ const JobsUI: React.FC<ChoresTabParams> = ({api, org, visible})=>{
 
 	const doDeleteResource=()=>{
 		setConfirmingDelete(false);
-		resourcesService.modify("DELETE", "/api/resources", {
-			orgId: org.organization!.id,
-			resourceId: editResource!.id,
-		}).then(()=>setEditResource(null));
+		resourcesService.modify("DELETE", "/api/resources/"+editResource!.id).then(()=>setEditResource(null));
 	};
 	const renameResource=(rsrc: PointResource, newName: string)=>{
 		resourcesService.modify("PUT", "/api/resources", {
@@ -102,14 +103,14 @@ const JobsUI: React.FC<ChoresTabParams> = ({api, org, visible})=>{
 				marginBottom: 5,
 				}}>
 				<Typography>
-					Are you sure you want to delete job '{editResource?.name}'?<br />
+					Are you sure you want to delete resource '{editResource?.name}'?<br />
 					This cannot be undone.
 				</Typography>
 				<Box sx={{width: "100%", display: "flex", flexDirection: "row", justifyContent: "center"}}>
 					<Button
 						variant="contained"
 						onClick={e=>doDeleteResource()}>
-						Delete Job
+						Delete Resource
 					</Button>
 				</Box>
 			</Box>
@@ -225,4 +226,4 @@ const JobsUI: React.FC<ChoresTabParams> = ({api, org, visible})=>{
 	</Box>
 };
 
-export default JobsUI;
+export default ResourcesUI;

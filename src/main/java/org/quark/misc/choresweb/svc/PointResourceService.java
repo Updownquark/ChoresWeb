@@ -55,7 +55,7 @@ public class PointResourceService {
 		} catch (EntityNotFoundException e) {
 			return null;
 		}
-		if (resource == null || resource.getOrganization().getId() != member.getId().getOrganization().getId())
+		if (resource == null || (member != null && resource.getOrganization().getId() != member.getId().getOrganization().getId()))
 			return null;
 		return resource;
 	}

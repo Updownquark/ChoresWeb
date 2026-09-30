@@ -63,13 +63,15 @@ const AssignmentsUI: React.FC<ChoresTabParams>=({api, org, visible})=>{
 		</Table>
 		<Box sx={{display: "flex", flexDirection: "row", alignItems: "center", justifyContent: "space-evenly"}}>
 			<Button onClick={e=>{
-				assignmentService.modify("POST", "/api/assignments/submit", {
+				assignmentService.modify("POST", "/api/assignments/submit", undefined, {
 					orgId: org.organization!.id
+				}).then(()=>{ //Gotta wait because otherwise it's a race
+					memberService.check();
+					jobService.check(); // Last Done should have changed
+					historyService.check();
 				});
-				memberService.check();
-				historyService.check();
 			}}>Submit</Button>
-			<Button onClick={e=>assignmentService.modify("DELETE", "/api/assignments/all", {
+			<Button onClick={e=>assignmentService.modify("DELETE", "/api/assignments/all", undefined, {
 				orgId: org.organization!.id
 			})}>Clear All</Button>
 		</Box>

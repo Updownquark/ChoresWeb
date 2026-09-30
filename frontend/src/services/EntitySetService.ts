@@ -1,5 +1,5 @@
 import { AxiosInstance } from "axios";
-import { LifeCycleService } from "./LifeCycleService";
+import LifeCycleService from "./LifeCycleService";
 import * as Utils from "../util/Utils";
 
 export interface EntityChangeSet<E>{
@@ -7,19 +7,13 @@ export interface EntityChangeSet<E>{
 	changes: readonly E[];
 }
 
-export const EntityChangeType = {
-	add: "add",
-	remove: "remove",
-	update: "update",
-};
-export type EntityChangeType = typeof EntityChangeType[keyof typeof EntityChangeType];
-
 export interface EntityChangeEvent<E>{
-	readonly type: EntityChangeType,
-	readonly entities: ReadonlyMap<string | number, E>;
+	added?: ReadonlyMap<string | number, E>;
+	removed?: ReadonlyMap<string | number, E>;
+	changed?: ReadonlyMap<string | number, E>;
 }
 
-export type EntityChangeListener<E>=(events: readonly EntityChangeEvent<E> [])=>void;
+export type EntityChangeListener<E>=(events: EntityChangeEvent<E>)=>void;
 
 abstract class EntitySetService<E>{
 	private readonly _api: AxiosInstance;
@@ -54,7 +48,7 @@ abstract class EntitySetService<E>{
 		this._heartBeatListener= lifeCycle.onHeartBeat(this._check);
 	}
 
-	private async applyChanges(changes: EntityChangeSet<E>, fullSet: boolean){
+	private async applyChanges(changes: EntityChangeSet<E>, fullSet: boolean): Promise<EntityChangeEvent<E>> {
 		if(!changes){ // Out-of-date.  Need to re-initialize.
 			this._lastChangeTime=0;
 			changes=(await this._api.get<EntityChangeSet<E>>(this._initDataApiPath!)).data;
@@ -65,12 +59,12 @@ abstract class EntitySetService<E>{
 			if(fullSet && this._entities.length>0){
 				this.clear();
 			}
-			return;
+			return {};
 		}
 		const toDelete: Set<string | number> | null= fullSet ? new Set<string | number>() : null;
-		let added: Map<string | number, E> | null = null;
-		let removed: Map<string | number, E> | null = null;
-		let updated: Map<string | number, E> | null = null;
+		let added: Map<string | number, E> | undefined;
+		let removed: Map<string | number, E> | undefined;
+		let updated: Map<string | number, E> | undefined;
 		for(const change of changes.changes){
 			const id=this.getId(change);
 			const prev=this._entitiesById.get(id);
@@ -116,28 +110,15 @@ abstract class EntitySetService<E>{
 				}
 			}
 		}
-		this._immutableEntities=this._entities;
-		const events: EntityChangeEvent<E>[]=[];
-		if(removed){
-			events.push({
-				type: EntityChangeType.remove,
-				entities: removed,
-			});
+		this._immutableEntities=[...this._entities];
+		const event: EntityChangeEvent<E> = {
+			added: added,
+			removed: removed,
+			changed: updated,
 		}
-		if(added){
-			events.push({
-				type: EntityChangeType.add,
-				entities: added,
-			});
-		}
-		if(updated){
-			events.push({
-				type: EntityChangeType.update,
-				entities: updated,
-			});
-		}
-		if(events.length)
-			this.fireListeners(events);
+		if(added || removed || updated)
+			this.fireListeners(event);
+		return event;
 	}
 
 	public disconnect(){
@@ -169,10 +150,9 @@ abstract class EntitySetService<E>{
 		this._entities.splice(0, this._entities.length);
 		this._entitiesById.clear();
 		this._immutableEntities=[];
-		this.fireListeners([{
-			type: EntityChangeType.remove,
-			entities: entities,
-		}]);
+		this.fireListeners({
+			removed: entities,
+		});
 	}
 
 	abstract getId(entity: E): string | number;
@@ -194,8 +174,8 @@ abstract class EntitySetService<E>{
 			return this._check();
 	}
 
-	public async modify(method: string, path: string, body?: object, params: object = {}){
-		this.applyChanges((await this._api.request<EntityChangeSet<E>>({
+	public async modify(method: string, path: string, body?: object, params: object = {}): Promise<EntityChangeEvent<E>>{
+		return this.applyChanges((await this._api.request<EntityChangeSet<E>>({
 			method: method.toLowerCase(),
 			url: path,
 			data: body,
@@ -215,7 +195,7 @@ abstract class EntitySetService<E>{
 		};
 	}
 
-	private fireListeners(events: readonly EntityChangeEvent<E>[]) {
+	private fireListeners(events:  EntityChangeEvent<E>) {
 		for(const listener of this._listeners)
 			listener(events);
 	}
