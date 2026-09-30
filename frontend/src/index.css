@@ -103,7 +103,6 @@ select,
 button,
 div.MuiSelect-select {
 	background-color: var(--bg);
-	color: var(--text) !important;
 	border: 1px solid var(--border) !important;
 }
 
@@ -148,7 +147,8 @@ tr {
 }
 
 th,
-td {
+td,
+li {
 	background-color: var(--bg);
 	color: var(--text) !important;
 	border-bottom: 1px solid var(--border); /* 👈 Add inner grid borders horizontally */
@@ -186,8 +186,7 @@ table tbody tr:last-child td:last-child {
 	border-bottom-right-radius: 12px !important;
 }
 
-tr.selected td,
-tr.selected th {
+tr.selected td {
 	background-color: var(--accent-bg) !important;
 	border-bottom: 2px solid var(--accent) !important;
 }

@@ -74,6 +74,24 @@ const JobsUI: React.FC<ChoresTabParams> = ({api, org, visible})=>{
 			sessionStorage.removeItem("selectedWorker");
 	}
 
+	const isValidEmail=(email: string)=>{
+		if(!email)
+			return "Email address is required";
+		const at=email.indexOf("@");
+		if(at<=0)
+			return "Not an email address";
+		const dot=email.lastIndexOf(".");
+		if(dot<at || dot==email.length-1)
+			return "Not an email address";
+		for(const worker of workers){
+			if(worker.member!.email.toLowerCase()==email.toLowerCase())
+				return `Worker '${worker.name} has this email address`;
+		}
+		return null;
+	}
+
+	const addWorkerEmailValid=isValidEmail(newWorkerEmail);
+
 	const addWorker=()=>{
 		setNewWorkerEmail("");
 		setEnteringNewWorkerEmail(true);
@@ -229,34 +247,22 @@ const JobsUI: React.FC<ChoresTabParams> = ({api, org, visible})=>{
 				marginBottom: 5,
 				}}>
 				<Typography>Enter the email address for the new worker</Typography>
-				<ValidatedTextField
+				<TextField
 					sx={{width: "100%"}}
 					value={newWorkerEmail}
-					onChange={setNewWorkerEmail}
-					parser={s=>s}
-					validator={email=>{
-						if(!email)
-							return "Email address is required";
-						const at=email.indexOf("@");
-						if(at<=0)
-							return "Not an email address";
-						const dot=email.lastIndexOf(".");
-						if(dot<at || dot==email.length-1)
-							return "Not an email address";
-						for(const worker of workers){
-							if(worker.member!.email.toLowerCase()==email.toLowerCase())
-								return `Worker '${worker.name} has this email address`;
-						}
-						return null;
-					}}
+					onChange={e=>setNewWorkerEmail(e.target.value)}
 					label="Enter worker email address" />
 				<Box sx={{width: "100%", display: "flex", flexDirection: "row", justifyContent: "center"}}>
-					<Button
-						variant="contained"
-						onClick={e=>doAddWorker(newWorkerEmail)}
-						disabled={!newWorkerEmail.length}>
-						Add Worker
-					</Button>
+					<Tooltip title={addWorkerEmailValid ? addWorkerEmailValid : "Create a new worker"}>
+						<span>
+							<Button
+								variant="contained"
+								onClick={e=>doAddWorker(newWorkerEmail)}
+								disabled={!!addWorkerEmailValid}>
+								Add Worker
+							</Button>
+						</span>
+					</Tooltip>
 				</Box>
 			</Box>
 		</Dialog>

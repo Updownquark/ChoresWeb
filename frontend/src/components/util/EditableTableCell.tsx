@@ -1,5 +1,5 @@
 import React, { useState, useRef } from "react";
-import { SxProps, TableCell, TableCellProps } from "@mui/material";
+import { TableCell, TableCellProps } from "@mui/material";
 import ValidatedTextField from "./ValidatedTextField"; // Path to your component
 
 interface EditableTableCellProps<T> extends Omit<TableCellProps, "onChange"> {
@@ -45,10 +45,6 @@ export function EditableTableCell<T>({
 
 	// Fallback string renderer matching your internal logic
 	const displayValue = renderer ? renderer(value) : String(value);
-
-	const sx: SxProps={
-
-	};
 
 	return (
 		<TableCell
