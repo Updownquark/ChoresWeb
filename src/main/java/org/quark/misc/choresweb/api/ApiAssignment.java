@@ -28,14 +28,14 @@ public record ApiAssignment(long userId, long jobId, int completed, String notes
 
 	public static ApiAssignment of(Assignment entity) {
 		return new ApiAssignment(//
-			entity.getId().getWorker().getId(), //
-			entity.getId().getJob().getId(), //
+			entity.getWorker().getId(), //
+			entity.getJob().getId(), //
 			entity.getCompleted(), //
 			entity.getNotes(), false);
 	}
 
 	public static ApiAssignment deleted(Assignment entity) {
-		return deleted(entity.getId().getWorker().getId(), entity.getId().getJob().getId());
+		return deleted(entity.getWorker().getId(), entity.getJob().getId());
 	}
 
 	public static ApiAssignment deleted(long userId, long jobId) {

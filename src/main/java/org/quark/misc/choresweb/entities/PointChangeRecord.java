@@ -11,15 +11,19 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
-import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.Setter;
 
 @Entity
-@Table(name = "point_change_record")
+@Table(name = "point_change_record",
+	indexes = { //
+		@Index(name = "point_changes_by_source", columnList = "organization,change_type,change_source_id,time"), //
+		@Index(name = "work_by_worker", columnList = "organization,worker,time"),//
+	})
 public class PointChangeRecord implements Comparable<PointChangeRecord> {
 	@Id
 	@GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -51,7 +55,6 @@ public class PointChangeRecord implements Comparable<PointChangeRecord> {
 	@Column(nullable = false, columnDefinition = "TIMESTAMP")
 	@DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss")
 	@Getter
-	@Setter(AccessLevel.PRIVATE)
 	private Instant time;
 
 	@Column(length = 60, nullable = false)
@@ -83,8 +86,8 @@ public class PointChangeRecord implements Comparable<PointChangeRecord> {
 
 	public PointChangeRecord(Membership worker, Instant time, PointChangeType changeType, long changeSourceId, String changeSourceName,
 		long beforePoints, int pointChange, double quantity, double valueOrRate) {
-		this.organization = worker.getId().getOrganization();
-		this.worker = worker.getId().getMember();
+		this.organization = worker.getOrganization();
+		this.worker = worker.getMember();
 		this.time = time;
 		this.changeType = changeType;
 		this.changeSourceId = changeSourceId;
@@ -97,7 +100,7 @@ public class PointChangeRecord implements Comparable<PointChangeRecord> {
 
 	public PointChangeRecord(Job job, Membership worker, Instant time, int points) {
 		organization = job.getOrganization();
-		this.worker = worker.getId().getMember();
+		this.worker = worker.getMember();
 		changeType = PointChangeType.Job;
 		changeSourceId = job.getId();
 		this.time = time;
@@ -110,7 +113,7 @@ public class PointChangeRecord implements Comparable<PointChangeRecord> {
 
 	public PointChangeRecord(PointResource resource, Membership worker, Instant time, double quantity) {
 		organization = resource.getOrganization();
-		this.worker = worker.getId().getMember();
+		this.worker = worker.getMember();
 		changeType = PointChangeType.Resource;
 		changeSourceId = resource.getId();
 		this.time = time;
@@ -135,63 +138,9 @@ public class PointChangeRecord implements Comparable<PointChangeRecord> {
 	}
 
 	public static record FullPcrDto(long id, long workerId, PointChangeType changeType, long changeSourceId, Instant time,
-		String changeSourceName, long beforePoints, int pointChange, double quantity, double valueOrRate) {
-		public long id() {
-			return id;
-		}
-
-		public long workerId() {
-			return workerId;
-		}
-
-		public PointChangeType changeType() {
-			return changeType;
-		}
-
-		public long changeSourceId() {
-			return changeSourceId;
-		}
-
-		public Instant time() {
-			return time;
-		}
-
-		public String changeSourceName() {
-			return changeSourceName;
-		}
-
-		public long beforePoints() {
-			return beforePoints;
-		}
-
-		public int pointChange() {
-			return pointChange;
-		}
-
-		public double quantity() {
-			return quantity;
-		}
-
-		public double valueOrRate() {
-			return valueOrRate;
-		}
+		String changeSourceName, long beforePoints, int pointChange, double quantity, double valueOrRate, String notes) {
 	}
 
 	public static record PcrKeyDto(long workerId, PointChangeType changeType, long changeSourceId, Instant time) {
-		public long workerId() {
-			return workerId;
-		}
-
-		public PointChangeType changeType() {
-			return changeType;
-		}
-
-		public long changeSourceId() {
-			return changeSourceId;
-		}
-
-		public Instant time() {
-			return time;
-		}
 	}
 }

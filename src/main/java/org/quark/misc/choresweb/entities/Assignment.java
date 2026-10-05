@@ -1,29 +1,41 @@
 package org.quark.misc.choresweb.entities;
 
 import jakarta.persistence.Column;
-import jakarta.persistence.EmbeddedId;
 import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
 import jakarta.persistence.Index;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
-import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.Setter;
 
 @Entity
 @Table(name = "assignment", indexes = { //
-		@Index(name = "assignments_by_org", columnList = "organization", unique = false) //
+	@Index(name = "assignments_by_org", columnList = "organization", unique = false), //
+	@Index(name = "assignments_by_job_and_worker", columnList = "job,worker", unique = true),
 })
 public class Assignment {
-	@EmbeddedId
+	@Id
+	@GeneratedValue(strategy = GenerationType.IDENTITY)
 	@Getter
-	@Setter(AccessLevel.PRIVATE)
-	private AssignmentId id;
+	private long id;
 
 	@ManyToOne(optional = false)
 	@JoinColumn(name = "organization")
 	private Organization organization;
+
+	@ManyToOne(optional = false)
+	@JoinColumn(name = "job")
+	@Getter
+	private Job job;
+
+	@ManyToOne(optional = false)
+	@JoinColumn(name = "worker")
+	@Getter
+	private User worker;
 
 	@Getter
 	@Setter
@@ -38,7 +50,8 @@ public class Assignment {
 	}
 
 	public Assignment(Job job, User worker) {
-		id=new AssignmentId(job, worker);
+		this.job = job;
+		this.worker = worker;
 		organization=job.getOrganization();
 	}
 }

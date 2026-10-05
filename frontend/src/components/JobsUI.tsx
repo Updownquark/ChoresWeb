@@ -50,11 +50,11 @@ const JobsUI: React.FC<ChoresTabParams> = ({api, org, visible})=>{
 	}
 	
 	const addJob=()=>{
-		jobService.modify("PUT", "/api/jobs", {
+		api.put<Job>("/api/jobs", {
 			orgId: org.organization!.id,
 		}).then(event=>{
-			if(event.added)
-				setEditJob(event.added.values().next().value!);
+			if(event.data)
+				setEditJob(event.data);
 		});
 	};
 
@@ -64,39 +64,39 @@ const JobsUI: React.FC<ChoresTabParams> = ({api, org, visible})=>{
 
 	const doDeleteJob=()=>{
 		setConfirmingDelete(false);
-		jobService.modify("DELETE", "/api/jobs/"+editJob!.id).then(()=>setEditJob(null));
+		api.delete("/api/jobs/"+editJob!.id).then(()=>setEditJob(null));
 	};
 	const renameJob=(job: Job, newName: string)=>{
-		jobService.modify("PUT", "/api/jobs", {
+		api.put("/api/jobs", {
 			orgId: org.organization!.id,
 			jobId: job.id,
 			name: newName,
-		})
+		});
 	};
 	const setJobPoints=(job: Job, newPoints: number)=>{
-		jobService.modify("PUT", "/api/jobs", {
+		api.put("/api/jobs", {
 			orgId: org.organization!.id,
 			jobId: job.id,
 			value: newPoints,
-		})
+		});
 	};
 	const myDateFormat=new Intl.DateTimeFormat(Intl.NumberFormat().resolvedOptions().locale, {
 		dateStyle: "short",
 		timeStyle: "medium",
 	});
 	const setJobMinLevel=(job: Job, minLevel: number)=>{
-		jobService.modify("PUT", "/api/jobs", {
+		api.put("/api/jobs", {
 			orgId: org.organization!.id,
 			jobId: job.id,
 			minLevel: minLevel,
-		})
+		});
 	};
 	const setJobMaxLevel=(job: Job, maxLevel: number)=>{
-		jobService.modify("PUT", "/api/jobs", {
+		api.put("/api/jobs", {
 			orgId: org.organization!.id,
 			jobId: job.id,
 			maxLevel: maxLevel,
-		})
+		});
 	};
 	const parseLabels=(labelStr: string): readonly string[] | null => {
 		if(!labelStr || labelStr.length==0)
@@ -107,25 +107,25 @@ const JobsUI: React.FC<ChoresTabParams> = ({api, org, visible})=>{
 		return labels;
 	}
 	const setJobInclusionLabels=(job: Job, labels: readonly string[] | null)=>{
-		jobService.modify("PUT", "/api/jobs", {
+		api.put("/api/jobs", {
 			orgId: org.organization!.id,
 			jobId: job.id,
 			inclusionLabels: labels,
-		})
+		});
 	};
 	const setJobExclusionLabels=(job: Job, labels: readonly string[] | null)=>{
-		jobService.modify("PUT", "/api/jobs", {
+		api.put("/api/jobs", {
 			orgId: org.organization!.id,
 			jobId: job.id,
 			exclusionLabels: labels,
-		})
+		});
 	};
 	const setJobActive=(job: Job, active: boolean)=>{
-		jobService.modify("PUT", "/api/jobs", {
+		api.put("/api/jobs", {
 			orgId: org.organization!.id,
 			jobId: job.id,
 			active: active,
-		})
+		});
 	};
 
 	return <Box sx={{
@@ -187,10 +187,16 @@ const JobsUI: React.FC<ChoresTabParams> = ({api, org, visible})=>{
 						<TableCell><b>Name</b></TableCell>
 						<TableCell><b>Points</b></TableCell>
 						<TableCell><b>Last Done</b></TableCell>
+						{/*
+						These fields were for an older version of this app (not even for the web),
+						in which there was an auto-assignment feature that would attempt to assign
+						chores to workers automatically.
+						These fields were to instruct that feature.
+						That feature ended up being more trouble than it was worth, so these fields are no longer useful.
 						<TableCell><b>Min Level</b></TableCell>
 						<TableCell><b>Max Level</b></TableCell>
 						<TableCell><b>Inclusion Labels</b></TableCell>
-						<TableCell><b>Exclusion Labels</b></TableCell>
+						<TableCell><b>Exclusion Labels</b></TableCell>*/}
 						<TableCell><b>Active</b></TableCell>
 					</TableRow>
 				</TableHead>
@@ -241,23 +247,23 @@ const JobsUI: React.FC<ChoresTabParams> = ({api, org, visible})=>{
 								<TableCell sx={cellStyle}>{job.value}</TableCell>
 							}
 							<TableCell sx={cellStyle}>{job.lastDone ? myDateFormat.format(new Date(job.lastDone!)) : "Never"}</TableCell>
-							{org.manager ?
+							{/*org.manager ?
 								<EditableTableCell
 									sx={cellStyle}
 									value={job.minLevel}
 									onSave={newLevel=>setJobMinLevel(job, newLevel)}
 									parser={parseInt} />
 								: <TableCell sx={cellStyle}>{job.minLevel}</TableCell>
-							}
-							{org.manager ?
+							*/}
+							{/*org.manager ?
 								<EditableTableCell
 									sx={cellStyle}
 									value={job.maxLevel}
 									onSave={newLevel=>setJobMaxLevel(job, newLevel)}
 									parser={parseInt} />
 								: <TableCell sx={cellStyle}>{job.maxLevel}</TableCell>
-							}
-							{org.manager ?
+							*/}
+							{/*org.manager ?
 								<EditableTableCell
 									sx={cellStyle}
 									value={job.inclusionLabels}
@@ -265,16 +271,16 @@ const JobsUI: React.FC<ChoresTabParams> = ({api, org, visible})=>{
 									parser={parseLabels}
 									renderer={labels=>labels ? labels.join(",") : ""} />
 								: <TableCell sx={cellStyle}>worker.labels ? worker.labels.join(",") : ""</TableCell>
-							}
-							{org.manager ?
+							*/}
+							{/*org.manager ?
 								<EditableTableCell
 									sx={cellStyle}
-									value={job.inclusionLabels}
+									value={job.exclusionLabels}
 									onSave={newLabels=>setJobExclusionLabels(job, newLabels)}
 									parser={parseLabels}
 									renderer={labels=>labels ? labels.join(",") : ""} />
 								: <TableCell sx={cellStyle}>worker.labels ? worker.labels.join(",") : ""</TableCell>
-							}
+							*/}
 							<TableCell sx={{paddingTop: 0, paddingBottom: 0}}>
 								{org.manager ?
 									<Checkbox

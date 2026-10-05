@@ -13,6 +13,7 @@ import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.JwtDecoders;
 import org.springframework.security.oauth2.jwt.JwtException;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
@@ -26,12 +27,16 @@ public class SecurityConfig {
 	private List<String> allowedOrigins;
 
 	private final AuthService theAuthService;
+	private final SseTokenParamFilter theSseTokenParamFilter;
 
 	public SecurityConfig(//
 		@Value("${chores.cors.allowed-origins}") List<String> allowedOrigins, //
-		AuthService authService) {
+		AuthService authService, //
+		SseTokenParamFilter sseTokenParamFilter//
+	) {
 		this.allowedOrigins = allowedOrigins;
 		theAuthService = authService;
+		theSseTokenParamFilter = sseTokenParamFilter;
 	}
 
 	@Bean
@@ -40,6 +45,8 @@ public class SecurityConfig {
 			.cors(cors -> cors.configurationSource(corsConfigurationSource()))//
 			.csrf(csrf -> csrf.disable()) // Enable and configure CSRF with cookies in production
 			.sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))//
+			// Inject the query parameter translator at the very front of the security boundary
+			.addFilterBefore(theSseTokenParamFilter, UsernamePasswordAuthenticationFilter.class)//
 			.authorizeHttpRequests(auth -> auth//
 				.requestMatchers("/api/public/**", // I don't have any public APIs at the moment
 					"/api/auth/refresh", "/api/auth/logout" // No authorization for end points needed for authorization

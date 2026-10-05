@@ -6,16 +6,14 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.NavigableSet;
-import java.util.Set;
-import java.util.SortedSet;
-import java.util.TreeSet;
 
+import org.quark.misc.choresweb.api.ChoresApplicationEvent;
 import org.quark.misc.choresweb.entities.Membership;
 import org.quark.misc.choresweb.entities.PointChangeRecord;
 import org.quark.misc.choresweb.entities.PointChangeRecord.PointChangeType;
 import org.quark.misc.choresweb.repos.MembershipRepo;
 import org.quark.misc.choresweb.repos.PointChangeRecordRepo;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Slice;
@@ -30,17 +28,16 @@ public class PointHistoryService {
 	private final MembershipRepo theMembershipRepo;
 	private final UserService theUserSvc;
 	private final PointChangeRecordRepo theHistoryRepo;
-	private final NavigableSet<HistoryChange> theChanges;
-	private final EntityManager entityManager;
-	private long theChangePersistenceTime = 15000;
+	private final EntityManager theEntityManager;
+	private final ApplicationEventPublisher theEventPublisher;
 
 	public PointHistoryService(MembershipRepo membershipRepo, UserService userSvc, PointChangeRecordRepo historyRepo,
-		NavigableSet<HistoryChange> changes, EntityManager entityManager) {
+		EntityManager entityManager, ApplicationEventPublisher eventPublisher) {
 		theMembershipRepo = membershipRepo;
 		theUserSvc = userSvc;
 		theHistoryRepo = historyRepo;
-		theChanges = changes;
-		this.entityManager = entityManager;
+		theEntityManager = entityManager;
+		theEventPublisher = eventPublisher;
 	}
 
 	@Transactional(readOnly = true)
@@ -48,7 +45,7 @@ public class PointHistoryService {
 		int pageNumber) {
 		if (jobId != null && resourceId != null)
 			throw new IllegalArgumentException("jobId and resourceId may not both be specified");
-		long orgId = me.getId().getOrganization().getId();
+		long orgId = me.getOrganization().getId();
 		Pageable page = PageRequest.of(pageNumber, pageSize, Sort.by("time", "id").descending());
 		Slice<PointChangeRecord.FullPcrDto> data;
 		if (userId != null) {
@@ -73,7 +70,7 @@ public class PointHistoryService {
 	public int getHistorySize(Membership me, Long userId, Long jobId, Long resourceId) {
 		if (jobId != null && resourceId != null)
 			throw new IllegalArgumentException("jobId and resourceId may not both be specified");
-		long orgId = me.getId().getOrganization().getId();
+		long orgId = me.getOrganization().getId();
 		if (userId != null) {
 			if (jobId != null)
 				return theHistoryRepo.getChangeSourceHistorySizeForWorker(orgId, userId, PointChangeType.Job, jobId);
@@ -94,63 +91,17 @@ public class PointHistoryService {
 	@Transactional
 	public void historyAdded(List<PointChangeRecord> changes) {
 		theHistoryRepo.saveAll(changes);
-		publishChanges(changes);
+		publishChanges(changes, false);
 	}
 
-	private synchronized void publishChanges(Iterable<PointChangeRecord> changes) {
-		long time = System.nanoTime();
-		theChanges.headSet(new HistoryChange(time - theChangePersistenceTime, 0, 0, 0, 0), false).clear();
-		if (!theChanges.isEmpty()) {
-			var last = theChanges.last();
-			if (last.changeTime >= time)
-				time = last.changeTime + 1;
-		}
+	private synchronized void publishChanges(Iterable<PointChangeRecord> changes, boolean reverted) {
 		for (PointChangeRecord change : changes) {
-			switch (change.getChangeType()) {
-			case Job:
-				theChanges.add(
-					new HistoryChange(time, change.getOrganization().getId(), change.getWorker().getId(), change.getChangeSourceId(), -1));
-				break;
-			case Resource:
-				theChanges.add(
-					new HistoryChange(time, change.getOrganization().getId(), change.getWorker().getId(), -1, change.getChangeSourceId()));
-				break;
-			default:
-				theChanges.add(new HistoryChange(time, change.getOrganization().getId(), change.getWorker().getId(), -1, -1));
-				break;
-			}
-			entityManager.detach(change);
-			time++;
+			theEventPublisher
+				.publishEvent(
+					ChoresApplicationEvent.dataChange(this, change.getOrganization().getId(), "history", change.getId(), !reverted));
+			if (!reverted)
+				theEntityManager.detach(change);
 		}
-	}
-
-	public synchronized HistoryChanges getChanges(long orgId, long lastKnownChange) {
-		SortedSet<Long> userIds = null, jobIds = null, resourceIds = null;
-		long lastTime = lastKnownChange;
-		for (HistoryChange change : theChanges.tailSet(new HistoryChange(lastKnownChange, 0, 0, 0, 0), false)) {
-			if (change.orgId != orgId)
-				continue;
-			lastTime = change.changeTime;
-			if (change.userId != -1) {
-				if (userIds == null)
-					userIds = new TreeSet<>();
-				userIds.add(change.userId);
-			}
-			if (change.jobId != -1) {
-				if (jobIds == null)
-					jobIds = new TreeSet<>();
-				jobIds.add(change.jobId);
-			}
-			if (change.resourceId != -1) {
-				if (resourceIds == null)
-					resourceIds = new TreeSet<>();
-				resourceIds.add(change.resourceId);
-			}
-		}
-		return new HistoryChanges(lastTime, //
-			userIds == null ? Collections.emptySet() : userIds, //
-			jobIds == null ? Collections.emptySet() : jobIds, //
-			resourceIds == null ? Collections.emptySet() : resourceIds);
 	}
 
 	@Transactional
@@ -182,7 +133,7 @@ public class PointHistoryService {
 				return;
 			MemberChanges member = members.get(change.getWorker().getId());
 			if (member == null) {
-				Membership m = theUserSvc.getMembership(me.getId().getOrganization().getId(), change.getWorker().getId());
+				Membership m = theUserSvc.getMembership(me.getOrganization().getId(), change.getWorker().getId());
 				if (m == null)
 					continue;
 				member = new MemberChanges(m);
@@ -199,8 +150,8 @@ public class PointHistoryService {
 			theUserSvc.memberUpdated(member.member); // Update user service consumers
 			// Rewrite point history to be consistent
 			List<PointChangeRecord> affected = theHistoryRepo.getWorkerHistoryAfter(//
-				me.getId().getOrganization().getId(), //
-				member.member.getId().getMember().getId(), member.changes.get(0).getTime().toEpochMilli());
+				me.getOrganization().getId(), //
+				member.member.getMember().getId(), member.changes.get(0).getTime().toEpochMilli());
 			Iterator<PointChangeRecord> deleted = member.changes.iterator();
 			PointChangeRecord currentDeleted = deleted.next();
 			int pointDelta = -currentDeleted.getPointChange();
@@ -220,41 +171,6 @@ public class PointHistoryService {
 			theHistoryRepo.saveAll(affected);
 		}
 
-		publishChanges(history); // Alert history service consumers
-	}
-
-	static class HistoryChange implements Comparable<HistoryChange> {
-		final long changeTime;
-		final long orgId;
-		final long userId;
-		final long jobId;
-		final long resourceId;
-
-		HistoryChange(long changeTime, long orgId, long userId, long jobId, long resourceId) {
-			this.changeTime = changeTime;
-			this.orgId = orgId;
-			this.userId = userId;
-			this.jobId = jobId;
-			this.resourceId = resourceId;
-		}
-
-		@Override
-		public int compareTo(HistoryChange o) {
-			return Long.compare(changeTime, o.changeTime);
-		}
-	}
-
-	public static class HistoryChanges {
-		public final long lastChangeTime;
-		public final Set<Long> userIds;
-		public final Set<Long> jobIds;
-		public final Set<Long> resourceIds;
-
-		HistoryChanges(long lastChangeTime, Set<Long> userIds, Set<Long> jobIds, Set<Long> resourceIds) {
-			this.lastChangeTime = lastChangeTime;
-			this.userIds = userIds;
-			this.jobIds = jobIds;
-			this.resourceIds = resourceIds;
-		}
+		publishChanges(history, true);
 	}
 }

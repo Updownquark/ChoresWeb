@@ -7,6 +7,8 @@ import AssignmentService from "./AssignmentService";
 import ResourceService from "./ResourceService";
 import PointHistoryService from "./PointHistoryService";
 import TokenAuthService from "../util/TokenAuthService";
+import SyncService from "./SyncService";
+import OrganizationService from "./OrganizationService";
 
 export const debug=true;
 
@@ -16,8 +18,10 @@ export const api=authService.getClient();
 
 export const lifeCycle = new LifeCycleService();
 export const backend = new DemoBackend(api);
+export const orgsService=new OrganizationService(api);
 export const jobService=new JobService(api);
 export const memberService=new MemberService(api);
 export const assignmentService=new AssignmentService(api);
 export const resourcesService=new ResourceService(api);
 export const historyService=new PointHistoryService(api);
+export const syncService=new SyncService(authService)

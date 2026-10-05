@@ -1,5 +1,9 @@
-import { List, ListItemText } from "@mui/material";
+import { Box, Button, Dialog, DialogTitle, IconButton, List, ListItem, ListItemText } from "@mui/material";
+import DeleteIcon from "@mui/icons-material/Delete";
 import Membership from "../values/Membership";
+import { useState } from "react";
+import Organization from "../values/Organization";
+import { api } from "../services/services";
 
 interface OrgListParams{
 	orgs: readonly Membership [];
@@ -7,14 +11,40 @@ interface OrgListParams{
 }
 
 const OrganizationList: React.FC<OrgListParams>=({orgs, setOrg})=>{
+	const [deleteOrg, setDeleteOrg] = useState<Organization | null>(null);
+
 	return <List>
 		{orgs.map(org=>{
 			const orgId=org.organization!.id;
-			return <ListItemText
+
+			return <ListItem
 				key="orgId"
-				primary={org.organization!.name}
-				onClick={e=>setOrg(orgId)}/>;
+				secondaryAction={
+                    <IconButton edge="end" aria-label="delete" onClick={()=>setDeleteOrg(org.organization)}>
+                      <DeleteIcon />
+                    </IconButton>
+                  }>
+				<ListItemText
+					primary={org.organization!.name}
+					sx={{cursor: "pointer"}}
+					onClick={()=>setOrg(orgId)}
+					 />
+			</ListItem>
 		})}
+		<Dialog open={!!deleteOrg}>
+			<DialogTitle title="Delete Organization?" />
+			<Box sx={{display: "flex", flexDirection: "column"}}>
+				<Box>Permanently delete '{deleteOrg?.name}'?</Box>
+				<Box>This cannot be undone.</Box>
+				<Box sx={{display: "flex", flexDirection: "row", justifyContent: "space-evenly"}}>
+					<Button onClick={()=>{
+						api.delete("/api/orgs/"+deleteOrg!.id);
+						setDeleteOrg(null);
+					}}>OK</Button>
+					<Button onClick={()=>setDeleteOrg(null)}>Cancel</Button>
+				</Box>
+			</Box>
+		</Dialog>
 	</List>
 };
 

@@ -7,7 +7,7 @@ class JobService extends EntitySetService<Job>{
 	private _activeJobs: readonly Job [] = [];
 
 	constructor(api: AxiosInstance){
-		super(api);
+		super(api, "job", "/api/jobs");
 		this.onChange(()=>{
 			this._activeJobs=this.getAll().filter(job=>job.active);
 		});
@@ -19,10 +19,6 @@ class JobService extends EntitySetService<Job>{
 
 	compare(job1: Job, job2: Job){
 		return Utils.compareNumberTolerant(job1.name, job2.name);
-	}
-
-	isDeleted(job: Job){
-		return job.deleted;
 	}
 
 	public getActiveJobs(): readonly Job[]{

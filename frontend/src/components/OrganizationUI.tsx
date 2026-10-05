@@ -10,7 +10,6 @@ import JobsUI from "./JobsUI";
 import WorkersUI from "./WorkersUI";
 import ResourcesUI from "./ResourcesUI";
 import FileUploadIcon from "@mui/icons-material/FileUpload";
-import { assignmentService, historyService, jobService, memberService, resourcesService } from "../services/services";
 
 interface OrgUIParams{
 	org: Membership;
@@ -47,12 +46,6 @@ const OrganizationUI: React.FC<OrgUIParams> =({org, api})=>{
 			params: {
 				orgId: org.organization!.id
 			}
-		}).then(()=>{
-			jobService.check();
-			memberService.check();
-			resourcesService.check();
-			assignmentService.check();
-			historyService.check();
 		});
 	}
 
@@ -76,7 +69,7 @@ const OrganizationUI: React.FC<OrgUIParams> =({org, api})=>{
 						else
 							return null;
 					}} onBlur={e=>setEditingName(false)}
-					autoFocus />
+					autoFocus selectAllOnFocus />
 					&nbsp;&nbsp;
 					<Tooltip title="Cancel name editing">
 						<IconButton onClick={e=>setEditingName(false)}>

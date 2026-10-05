@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useSyncExternalStore } from "react";
 import ChoresTabParams from "./ChoresTabParams";
-import { assignmentService, historyService, jobService, memberService } from "../services/services";
-import { Box, Button, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Tooltip } from "@mui/material";
+import { assignmentService,  jobService, memberService } from "../services/services";
+import { Box, Button, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow } from "@mui/material";
 import { EditableTableCell } from "./util/EditableTableCell";
 
 const AssignmentsUI: React.FC<ChoresTabParams>=({api, org, visible})=>{
@@ -40,7 +40,7 @@ const AssignmentsUI: React.FC<ChoresTabParams>=({api, org, visible})=>{
 								sx={{border: "1px solid black"}}
 								value={assn?.completed}
 								onSave={newV=>{
-									assignmentService.modify("PUT", "/api/assignments", {
+									api.put("/api/assignments", {
 										orgId: org.organization!.id,
 										userId: worker.member!.id,
 										jobId: job.id,
@@ -63,16 +63,16 @@ const AssignmentsUI: React.FC<ChoresTabParams>=({api, org, visible})=>{
 		</Table>
 		<Box sx={{display: "flex", flexDirection: "row", alignItems: "center", justifyContent: "space-evenly"}}>
 			<Button onClick={e=>{
-				assignmentService.modify("POST", "/api/assignments/submit", undefined, {
-					orgId: org.organization!.id
-				}).then(()=>{ //Gotta wait because otherwise it's a race
-					memberService.check();
-					jobService.check(); // Last Done should have changed
-					historyService.check();
+				api.post("/api/assignments/submit", {
+					params: {
+						orgId: org.organization!.id
+					}
 				});
 			}}>Submit</Button>
-			<Button onClick={e=>assignmentService.modify("DELETE", "/api/assignments/all", undefined, {
-				orgId: org.organization!.id
+			<Button onClick={e=>api.delete("/api/assignments/all", {
+				params: {
+					orgId: org.organization!.id
+				}
 			})}>Clear All</Button>
 		</Box>
 	</TableContainer>;

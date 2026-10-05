@@ -28,6 +28,6 @@ public class UploadDataController {
 		Membership membership = theMembershipSvc.getMe(user, orgId);
 		if (!membership.isManager())
 			throw new UnsupportedOperationException("You do not have permission to upload a backup for this organization");
-		theUploadService.uploadBackup(membership.getId().getOrganization(), () -> file.getResource().getInputStream());
+		theUploadService.uploadBackup(membership.getOrganization(), () -> file.getResource().getInputStream());
 	}
 }

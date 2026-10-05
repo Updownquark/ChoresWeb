@@ -10,7 +10,6 @@ interface Job{
 	priority: number;
 	active: boolean;
 	lastDone: number | null;
-	deleted: boolean;
 }
 
 export default Job;

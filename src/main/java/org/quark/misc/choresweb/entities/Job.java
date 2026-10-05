@@ -14,7 +14,6 @@ import jakarta.persistence.Index;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
-import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -26,13 +25,11 @@ public class Job implements Named {
 	@Id
 	@GeneratedValue(strategy = GenerationType.IDENTITY)
 	@Getter
-	@Setter(value = AccessLevel.PRIVATE)
 	private long id;
 
 	@ManyToOne(optional = false)
 	@JoinColumn(name = "organization")
 	@Getter
-	@Setter(value = AccessLevel.PRIVATE)
 	private Organization organization;
 
 	@Column(length = 60, nullable = false)

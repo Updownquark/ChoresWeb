@@ -1,11 +1,12 @@
 package org.quark.misc.choresweb.ctl;
 
+import java.util.List;
+
 import org.quark.misc.choresweb.api.ApiMembership;
 import org.quark.misc.choresweb.entities.Membership;
 import org.quark.misc.choresweb.svc.ModifyWorkerCommand;
 import org.quark.misc.choresweb.svc.OrganizationService;
 import org.quark.misc.choresweb.svc.UserService;
-import org.quark.misc.choresweb.util.EntityChangeSet;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -14,7 +15,6 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.fasterxml.jackson.annotation.JsonAlias;
@@ -31,41 +31,36 @@ public class UsersController {
 	}
 
 	@GetMapping("/by-org/{orgId}")
-	public EntityChangeSet.ChangeSet<ApiMembership> getMembers(@AuthenticationPrincipal Jwt user,
+	public List<ApiMembership> getMembers(@AuthenticationPrincipal Jwt user,
 		@PathVariable(required = true) long orgId) {
 		Membership me = theMembershipSvc.getMe(user, orgId);
 		return theUserSvc.getApiMembers(me);
 	}
 
-	@GetMapping("/changes/{orgId}")
-	public EntityChangeSet.ChangeSet<ApiMembership> getMemberChanges(@AuthenticationPrincipal Jwt user,
-		@PathVariable(required = true) long orgId, @RequestParam(required = true) long lastKnownChange) {
-		theMembershipSvc.getMe(user, orgId); // Ensure the user has access
-		return theUserSvc.getChanges(orgId, lastKnownChange);
+	@GetMapping("{id}")
+	public ApiMembership getMember(@AuthenticationPrincipal Jwt user, @PathVariable long id) {
+		Membership member = theMembershipSvc.getMembershipById(user, id);
+		return member == null ? null : ApiMembership.of(member, false, true);
 	}
 
 	@PostMapping("/add")
-	public EntityChangeSet.ChangeSet<ApiMembership> addMember(@AuthenticationPrincipal Jwt user, @RequestBody AddMember command,
-		@RequestParam(required = true) long lastKnownChange) {
+	public ApiMembership addMember(@AuthenticationPrincipal Jwt user, @RequestBody AddMember command) {
 		Membership me = theMembershipSvc.getMe(user, command.orgId());
-		theUserSvc.addWorker(me, command.userEmail(), null);
-		return theUserSvc.getChanges(me.getId().getOrganization().getId(), lastKnownChange);
+		Membership member = theUserSvc.addWorker(me, command.userEmail(), null);
+		return ApiMembership.of(member, false, true);
 	}
 
 	@PostMapping("/modify")
-	public EntityChangeSet.ChangeSet<ApiMembership> modifyMember(@AuthenticationPrincipal Jwt user,
-		@RequestBody ModifyWorkerCommand command, @RequestParam(required = true) long lastKnownChange) {
+	public ApiMembership modifyMember(@AuthenticationPrincipal Jwt user, @RequestBody ModifyWorkerCommand command) {
 		Membership me = theMembershipSvc.getMe(user, command.orgId());
-		theUserSvc.modifyWorker(me, command);
-		return theUserSvc.getChanges(me.getId().getOrganization().getId(), lastKnownChange);
+		Membership member = theUserSvc.modifyWorker(me, command);
+		return ApiMembership.of(member, false, true);
 	}
 
 	@DeleteMapping
-	public EntityChangeSet.ChangeSet<ApiMembership> removeMember(@AuthenticationPrincipal Jwt user, @RequestBody RemoveMember command,
-		@RequestParam(required = true) long lastKnownChange) {
+	public void removeMember(@AuthenticationPrincipal Jwt user, @RequestBody RemoveMember command) {
 		Membership me = theMembershipSvc.getMe(user, command.orgId());
 		theUserSvc.removeWorker(me, command.userId());
-		return theUserSvc.getChanges(me.getId().getOrganization().getId(), lastKnownChange);
 	}
 
 	public record AddMember(long orgId, @JsonAlias("user-email") String userEmail) {}

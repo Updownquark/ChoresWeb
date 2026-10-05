@@ -33,31 +33,37 @@ const PointHistoryView: React.FC<PointHistoryViewProps>=({org, userId, jobId, re
 	useEffect(()=>{
 		if(visible){
 			console.log("Getting history: ", userId, jobId, resourceId);
+			setLoading(true);
 			historyService.getHistory(org, userId, jobId, resourceId, pageSize, pageNumber)//
 				.then(data=>{
-					console.log("Installing new history");
 					setCurrentItems(data);
 				})
 				.finally(()=>setLoading(false));
 		}
-	}, [visible, refresh, pageNumber, pageSize]);
+	}, [userId, jobId, resourceId, visible, refresh, pageNumber, pageSize]);
 
-	// Listen for changes
+	//Total history count
 	useEffect(()=>{
 		if(visible){
-			setLoading(true);
-			console.log("Selection changed: ", userId, jobId, resourceId);
 			historyService.getHistoryCount(org, userId, jobId, resourceId)
 			.then(newSize=>{
 				setHistorySize(newSize);
 				setPageCount(Math.ceil(newSize/pageSize));
-				if(pageNumber!=0)
-					setPageNumber(0);
-				setRefresh(refresh+1);
+				_setPageNumber(0);
 			});
-			return historyService.onChange(userId, jobId, resourceId, ()=>setRefresh(refresh+1));
 		}
-	}, [userId, jobId, resourceId, visible]);
+	}, [userId, jobId, resourceId, visible, refresh])
+
+	// Listen for changes
+	useEffect(()=>{
+		if(visible){
+			return historyService.onChange(()=>{
+				setRefresh(prev=>prev+1);
+			});
+		}
+	}, [visible]);
+
+	console.log("History page "+pageNumber+" of "+pageCount);
 
 
 	const setCurrentItems=(data: readonly PointChangeRecord[])=>{
@@ -81,7 +87,7 @@ const PointHistoryView: React.FC<PointHistoryViewProps>=({org, userId, jobId, re
 	const setPageSize=(newSize: number)=>{
 		setLoading(true);
 		const newPageNumber=pageNumber*pageSize/newSize;
-		setPageSize(newSize);
+		_setPageSize(newSize);
 		setPageNumber(newPageNumber);
 	};
 
@@ -204,6 +210,7 @@ const PointHistoryView: React.FC<PointHistoryViewProps>=({org, userId, jobId, re
 					<TableCell>Points Before</TableCell>
 					<TableCell>Point Change</TableCell>
 					<TableCell>Points After</TableCell>
+					<TableCell>Notes</TableCell>
 				</TableRow>
 			</TableHead>
 			<TableBody>
@@ -222,7 +229,7 @@ const PointHistoryView: React.FC<PointHistoryViewProps>=({org, userId, jobId, re
 						}
 					}
 					const changeSourceName=changeSource?.name ?? item.changeSourceName;
-					const workerName=showWorker ? memberService.getById(item.workerId)?.name : null;
+					const workerName=showWorker ? memberService.getByUserId(item.workerId)?.name : null;
 					return <TableRow key={item.id} onClick={e=>selectionClick(item.id, e.ctrlKey, e.shiftKey)}>
 						{debug ? <TableCell>{item.id}</TableCell> : null}
 						<TableCell>{myDateFormat.format(new Date(item.time))}</TableCell>
@@ -233,6 +240,7 @@ const PointHistoryView: React.FC<PointHistoryViewProps>=({org, userId, jobId, re
 						<TableCell>{item.beforePoints}</TableCell>
 						<TableCell>{item.pointChange}</TableCell>
 						<TableCell>{item.beforePoints+item.pointChange}</TableCell>
+						<TableCell>{item.notes ?? ""}</TableCell>
 					</TableRow>
 				})}
 			</TableBody>

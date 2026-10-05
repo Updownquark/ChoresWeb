@@ -4,7 +4,6 @@ interface  Assignment{
 	jobId: number;
 	completed: number;
 	notes: string;
-	deleted: boolean;
 }
 
 export default Assignment;

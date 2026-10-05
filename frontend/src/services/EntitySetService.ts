@@ -1,132 +1,99 @@
 import { AxiosInstance } from "axios";
-import LifeCycleService from "./LifeCycleService";
 import * as Utils from "../util/Utils";
-
-export interface EntityChangeSet<E>{
-	lastTime: number,
-	changes: readonly E[];
-}
+import { syncService } from "./services";
 
 export interface EntityChangeEvent<E>{
-	added?: ReadonlyMap<string | number, E>;
-	removed?: ReadonlyMap<string | number, E>;
-	changed?: ReadonlyMap<string | number, E>;
+	added?: E;
+	removed?: E;
+	changed?: E;
 }
 
-export type EntityChangeListener<E>=(events: EntityChangeEvent<E>)=>void;
+export type EntityChangeListener<E>=(events: readonly EntityChangeEvent<E>[])=>void;
 
 abstract class EntitySetService<E>{
 	private readonly _api: AxiosInstance;
-	private _initDataApiPath: string | null = null;
+	private readonly _tableName: string;
+	private readonly _apiPath: string;
 	private readonly _entities: E[]=[];
 	private readonly _entitiesById=new Map<string | number, E>();
 	private _immutableEntities: readonly E[]=[];
-	private _lastChangeTime: number=0;
-	private _heartBeatListener: (()=>void) | null = null;
-	private _check: (()=>Promise<void>) | null = null;
+	private _changeListener: (()=>void) | null = null;
 	private readonly _listeners: EntityChangeListener<E> [] = [];
 
-	constructor(api: AxiosInstance){
+	constructor(api: AxiosInstance, tableName: string, apiPath: string){
 		this._api=api;
+		this._tableName=tableName;
+		this._apiPath=apiPath;
 	}
 
-	public async init(initDataApiPath: string, changesApiPath: string, lifeCycle: LifeCycleService){
-		this._initDataApiPath=initDataApiPath;
+	public async init(orgId?: number){
 		this.disconnect();
 
-		this.applyChanges((await this._api.get<EntityChangeSet<E>>(this._initDataApiPath)).data, true);
+		let byOrgPath=this._apiPath;
+		if(orgId)
+			byOrgPath+="/by-org/"+orgId;
+		const entities=(await this._api.get<E[]>(byOrgPath)).data;
+		entities.sort((e1, e2)=>this.compare(e1, e2));
+		let i=0;
+		const initialAdds:EntityChangeEvent<E>[] =[];
+		for(const entity of entities){
+			this.added(i++, entity);
+			initialAdds.push({added: entity});
+		}
+		this._immutableEntities=[...entities];
+		if(initialAdds.length)
+			this.fireListeners(initialAdds);
 
-		this._check=async ()=>{
-			if(!this._lastChangeTime)
-				return; //Not initialized yet
-			this.applyChanges((await this._api.get<EntityChangeSet<E>>(changesApiPath, {
-				params: {
-					lastKnownChange: this._lastChangeTime
-				}
-			})).data, false);
-		};
-		this._heartBeatListener= lifeCycle.onHeartBeat(this._check);
-	}
-
-	private async applyChanges(changes: EntityChangeSet<E>, fullSet: boolean): Promise<EntityChangeEvent<E>> {
-		if(!changes){ // Out-of-date.  Need to re-initialize.
-			this._lastChangeTime=0;
-			changes=(await this._api.get<EntityChangeSet<E>>(this._initDataApiPath!)).data;
-			fullSet=true;
-		}
-		this._lastChangeTime=changes.lastTime;
-		if(changes.changes.length==0){
-			if(fullSet && this._entities.length>0){
-				this.clear();
-			}
-			return {};
-		}
-		const toDelete: Set<string | number> | null= fullSet ? new Set<string | number>() : null;
-		let added: Map<string | number, E> | undefined;
-		let removed: Map<string | number, E> | undefined;
-		let updated: Map<string | number, E> | undefined;
-		for(const change of changes.changes){
-			const id=this.getId(change);
-			const prev=this._entitiesById.get(id);
-			const deleted=this.isDeleted(change);
-			if(prev){ //Updated or deleted entity
-				const index=Utils.binarySearch(this._entities, e=>this.compare(prev, e));
-				if(toDelete)
-					toDelete.delete(id);
-				if(deleted){
-					this.deleted(index, prev);
-					if(!removed)
-						removed=new Map();
-					removed.set(id, prev);
-				} else{
-					this.updated(index, change);
-					if(!updated)
-						updated=new Map();
-					updated.set(id, change);
-				}
-			} else if(!deleted) { //New entity
-				let index=Utils.binarySearch(this._entities, e=>this.compare(change, e));
-				if(index<0)
-					index=-index-1;
-				else{
-					while(index<this._entities.length && this.compare(change, this._entities[index])==0)
-						index++;
-				}
-				this.added(index, change);
-				if(!added)
-					added=new Map();
-				added.set(id, change);
-			}
-		}
-		if(toDelete && toDelete.size){
-			for(const id of toDelete){
-				const entity=this._entitiesById.get(id);
+		this._changeListener=syncService.subscribe(this._tableName, event=>{
+			console.log(this._tableName, event.exists ? "add/update" : "delete", event.entityId);
+			if(event.exists)
+				this.addOrUpdate(event.entityId);
+			else{
+				const entity=this._entitiesById.get(event.entityId);
 				if(entity){
 					const index=Utils.binarySearch(this._entities, e=>this.compare(entity, e));
-					this.deleted(index, entity);
-					if(!removed)
-						removed=new Map();
-					removed.set(id, entity);
+					this.deleted(index, entity)
+					this._immutableEntities=[...this._entities];
+					this.fireListeners([{removed: entity}]);
 				}
 			}
+		});
+	}
+
+	private async addOrUpdate(id: number){
+		const entity=(await this._api.get<E>(this._apiPath+"/"+id)).data;
+		const prev=this._entitiesById.get(id);
+		if(prev){
+			const index=Utils.binarySearch(this._entities, e=>this.compare(prev, e));
+			if(entity){
+				console.log("Updating "+this._tableName, entity);
+				this.updated(index, entity);
+				this._immutableEntities=[...this._entities];
+				this.fireListeners([{changed: entity}])
+			} else{
+				this.deleted(index, prev);
+				this._immutableEntities=[...this._entities];
+				this.fireListeners([{removed: prev}])
+			}
+		} else if(entity){
+			let index=Utils.binarySearch(this._entities, e=>this.compare(entity, e));
+			if(index<0)
+				index=-index-1;
+			else{
+				while(index<this._entities.length && this.compare(entity, this._entities[index])==0)
+					index++;
+			}
+			this.added(index, entity);
+			this._immutableEntities=[...this._entities];
+			this.fireListeners([{added: entity}]);
 		}
-		this._immutableEntities=[...this._entities];
-		const event: EntityChangeEvent<E> = {
-			added: added,
-			removed: removed,
-			changed: updated,
-		}
-		if(added || removed || updated)
-			this.fireListeners(event);
-		return event;
 	}
 
 	public disconnect(){
-		this._lastChangeTime=0;
 		this.clear();
-		if(this._heartBeatListener){
-			this._heartBeatListener();
-			this._heartBeatListener=null;
+		if(this._changeListener){
+			this._changeListener();
+			this._changeListener=null;
 		}
 	}
 
@@ -146,20 +113,18 @@ abstract class EntitySetService<E>{
 	}
 
 	protected clear(){
-		const entities:ReadonlyMap<string | number, E>=new Map(this._entitiesById);
+		const entities=[...this._entities];
+		entities.reverse();
 		this._entities.splice(0, this._entities.length);
 		this._entitiesById.clear();
 		this._immutableEntities=[];
-		this.fireListeners({
-			removed: entities,
-		});
+		for(const entity of entities)
+			this.fireListeners([{removed: entity}]);
 	}
 
 	abstract getId(entity: E): string | number;
 
 	abstract compare(e1: E, e2: E): number;
-
-	abstract isDeleted(entity: E): boolean;
 
 	public getAll(): readonly E []{
 		return this._immutableEntities;
@@ -167,23 +132,6 @@ abstract class EntitySetService<E>{
 
 	public getById(id: string | number): E | null {
 		return this._entitiesById.get(id) ?? null;
-	}
-
-	public async check(){
-		if(this._check)
-			return this._check();
-	}
-
-	public async modify(method: string, path: string, body?: object, params: object = {}): Promise<EntityChangeEvent<E>>{
-		return this.applyChanges((await this._api.request<EntityChangeSet<E>>({
-			method: method.toLowerCase(),
-			url: path,
-			data: body,
-			params: {
-				...params,
-				lastKnownChange: this._lastChangeTime
-			}
-		})).data, false);
 	}
 
 	public onChange(listener: EntityChangeListener<E>): ()=>void {
@@ -195,7 +143,7 @@ abstract class EntitySetService<E>{
 		};
 	}
 
-	private fireListeners(events:  EntityChangeEvent<E>) {
+	private fireListeners(events: readonly EntityChangeEvent<E>[]) {
 		for(const listener of this._listeners)
 			listener(events);
 	}

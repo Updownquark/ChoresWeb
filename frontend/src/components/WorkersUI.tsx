@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useSyncExternalStore } from "react";
 import ChoresTabParams from "./ChoresTabParams";
-import { debug, historyService, jobService, memberService, resourcesService } from "../services/services";
+import { debug, api, historyService, jobService, memberService, resourcesService } from "../services/services";
 import AddIcon from "@mui/icons-material/Add";
 import DeleteIcon from "@mui/icons-material/Delete";
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
@@ -30,7 +30,7 @@ const getResourcesSnapshot = resourcesService.getAll.bind(resourcesService);
 const JobsUI: React.FC<ChoresTabParams> = ({api, org, visible})=>{
 	const getInitialEditWorker=(): Membership | null => {
 		const selectedWorkerStr=sessionStorage.getItem("selectedWorker");
-		if(selectedWorkerStr){
+		if(selectedWorkerStr && memberService.getAll().length){
 			return memberService.getById(parseInt(selectedWorkerStr));
 		}
 		return null;
@@ -67,12 +67,12 @@ const JobsUI: React.FC<ChoresTabParams> = ({api, org, visible})=>{
 		const worker=getInitialEditWorker();
 		if(worker?.member?.id!=editWorker?.member?.id)
 			_setEditWorker(worker);
-	}, [resources]);
+	}, [workers]);
 
 	const setEditWorker=(worker: Membership | null)=>{
 		_setEditWorker(worker);
 		if(worker)
-			sessionStorage.setItem("selectedWorker", worker.member!.id.toString());
+			sessionStorage.setItem("selectedWorker", worker.id.toString());
 		else
 			sessionStorage.removeItem("selectedWorker");
 	}
@@ -102,12 +102,12 @@ const JobsUI: React.FC<ChoresTabParams> = ({api, org, visible})=>{
 
 	const doAddWorker=(email: string)=>{
 		setEnteringNewWorkerEmail(false);
-		memberService.modify("POST", "/api/members/add", {
+		api.post<Membership>("/api/members/add", {
 			orgId: org.organization!.id,
 			userEmail: email,
-		}).then(event=>{
-			if(event.added)
-				setEditWorker(event.added.values().next().value!);
+		}).then(response=>{
+			if(response.data)
+				setEditWorker(response.data);
 		});
 	};
 	const deleteWorker=()=>{
@@ -116,24 +116,26 @@ const JobsUI: React.FC<ChoresTabParams> = ({api, org, visible})=>{
 
 	const doDeleteWorker=()=>{
 		setConfirmingDelete(false);
-		memberService.modify("DELETE", "/api/members", {
-			orgId: org.organization!.id,
-			userId: editWorker!.member!.id,
+		api.delete("/api/members/", {
+			data: {
+				orgId: org.organization!.id,
+				userId: editWorker!.member!.id,
+			}
 		}).then(()=>setEditWorker(null));
 	};
 	const renameWorker=(worker: Membership, newName: string)=>{
-		memberService.modify("POST", "/api/members/modify", {
+		api.post("/api/members/modify", {
 			orgId: org.organization!.id,
 			userId: worker.member!.id,
 			name: newName,
-		})
+		});
 	};
 	const setWorkerLevel=(worker: Membership, newLevel: number)=>{
-		memberService.modify("POST", "/api/members/modify", {
+		api.post("/api/members/modify", {
 			orgId: org.organization!.id,
 			userId: worker.member!.id,
 			level: newLevel,
-		})
+		});
 	};
 	const parseLabels=(labelStr: string): readonly string[] | null => {
 		if(!labelStr || labelStr.length==0)
@@ -144,20 +146,20 @@ const JobsUI: React.FC<ChoresTabParams> = ({api, org, visible})=>{
 		return labels;
 	}
 	const setWorkerLabels=(worker: Membership, newLabels: readonly string[] | null)=>{
-		memberService.modify("POST", "/api/members/modify", {
+		api.post("/api/members/modify", {
 			orgId: org.organization!.id,
 			userId: worker.member!.id,
 			labels: newLabels,
-		})
+		});
 	};
 	const reportWork=()=>{
-		memberService.modify("POST", "/api/assignments/report", {
+		api.post("/api/assignments/report", {
 			orgId: org.organization!.id,
 			userId: editWorker!.member!.id,
 			jobId: freeLanceJob!.id,
 			completed: freeLancePoints,
+			notes: freeLanceNotes,
 		});
-		historyService.check();
 	};
 	const usePoints=(rsrc: PointResource, points?: number)=>{
 		let userUsage=pointUsage.get(editWorker!.member!.id);
@@ -221,12 +223,11 @@ const JobsUI: React.FC<ChoresTabParams> = ({api, org, visible})=>{
 			});
 		}
 
-		memberService.modify("POST", "/api/resources/redeem", {
+		api.post("/api/resources/redeem", {
 			orgId: org.organization!.id,
 			userId: editWorker!.member!.id,
 			usage: usage,
-		})
-		historyService.check();
+		});
 	};
 	
 	return <Box sx={{
@@ -250,6 +251,10 @@ const JobsUI: React.FC<ChoresTabParams> = ({api, org, visible})=>{
 					sx={{width: "100%"}}
 					value={newWorkerEmail}
 					onChange={e=>setNewWorkerEmail(e.target.value)}
+					onKeyDown={e=>{
+						if(e.key=="Enter" && !addWorkerEmailValid)
+							doAddWorker(newWorkerEmail);
+					}}
 					label="Enter worker email address" />
 				<Box sx={{width: "100%", display: "flex", flexDirection: "row", justifyContent: "center"}}>
 					<Tooltip title={addWorkerEmailValid ? addWorkerEmailValid : "Create a new worker"}>
@@ -328,8 +333,13 @@ const JobsUI: React.FC<ChoresTabParams> = ({api, org, visible})=>{
 						return <TableRow
 							key={worker.member!.id}
 							className={editing ? "selected" : ""}
-							onClick={e=>setEditWorker(worker)}>
-							{debug ? <TableCell>{worker.member?.id}</TableCell> : null}
+							onClick={e=>{
+								if(e.ctrlKey && editWorker!.member!.id==worker.member!.id)
+									setEditWorker(null);
+								else
+									setEditWorker(worker);
+							}}>
+							{debug ? <TableCell>{worker.member?.id+" ("+worker.id+")"}</TableCell> : null}
 							{nameEditable ? <EditableTableCell
 								value={worker.name}
 								onSave={newName=>renameWorker(worker, newName)}
@@ -397,7 +407,17 @@ const JobsUI: React.FC<ChoresTabParams> = ({api, org, visible})=>{
 							{job.name}
 						</MenuItem>)}
 					</Select>
-					<TextField value={freeLanceNotes ?? ""} onChange={e=>setFreeLanceNotes(e.target.value)} />
+					<ValidatedTextField
+						label="Optional notes"
+						value={freeLanceNotes ?? ""}
+						onChange={setFreeLanceNotes}
+						parser={s=>s}
+						validator={notes=>{
+							if(notes && notes.length>100)
+								return "Notes cannot exceed 100 characters";
+							return null;
+						}}
+						 />
 					<Button disabled={!freeLanceJob} onClick={reportWork}>Report Work</Button>
 				</Box>
 				: null

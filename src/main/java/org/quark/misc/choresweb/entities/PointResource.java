@@ -23,7 +23,6 @@ public class PointResource implements Named {
 	@Id
 	@GeneratedValue(strategy = GenerationType.IDENTITY)
 	@Getter
-	@Setter(AccessLevel.PRIVATE)
 	private long id;
 
 	@ManyToOne(optional = false)

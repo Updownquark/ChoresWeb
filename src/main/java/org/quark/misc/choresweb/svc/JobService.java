@@ -7,10 +7,12 @@ import java.util.function.Predicate;
 
 import org.qommons.StringUtils;
 import org.quark.misc.choresweb.api.ApiJob;
+import org.quark.misc.choresweb.api.ChoresApplicationEvent;
 import org.quark.misc.choresweb.entities.Job;
 import org.quark.misc.choresweb.entities.Membership;
 import org.quark.misc.choresweb.repos.JobRepo;
-import org.quark.misc.choresweb.util.EntityChangeSet;
+import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -19,34 +21,40 @@ import jakarta.persistence.EntityNotFoundException;
 @Service
 public class JobService {
 	private final JobRepo theJobRepo;
-	private final EntityChangeSet<Long, OrgGroupedJob> theChanges = new EntityChangeSet<>(job -> job.job.id(), 15000);
+	private final OrganizationService theOrgService;
+	private final ApplicationEventPublisher theEventPublisher;
 
-	JobService(JobRepo jobRepo) {
+	JobService(JobRepo jobRepo, OrganizationService orgService, ApplicationEventPublisher eventPublisher) {
 		theJobRepo = jobRepo;
+		theOrgService = orgService;
+		theEventPublisher = eventPublisher;
+		System.out.println("Initializing JobService");
 	}
 
 	@Transactional(readOnly = true)
 	public List<Job> getJobs(Membership me) {
-		return theJobRepo.getOrgJobs(me.getId().getOrganization());
+		return theJobRepo.getOrgJobs(me.getOrganization());
 	}
 
 	@Transactional(readOnly = true)
-	public EntityChangeSet.ChangeSet<ApiJob> getApiJobs(Membership me) {
-		return theChanges.getValues(() -> theJobRepo.getOrgJobs(me.getId().getOrganization()).stream()//
+	public List<ApiJob> getApiJobs(Membership me) {
+		List<ApiJob> jobs = theJobRepo.getOrgJobs(me.getOrganization()).stream()//
 			.map(ApiJob::of)//
-			.toList());
+			.toList();
+		return jobs;
 	}
 
 	@Transactional(readOnly = true)
-	public Job getById(Membership me, long jobId) {
+	public Job getById(Jwt me, long jobId) {
 		Job job;
 		try {
-			job = theJobRepo.getReferenceById(jobId);
+			job = theJobRepo.findById(jobId).orElse(null);
 		} catch (EntityNotFoundException e) {
 			return null;
 		}
-		if (job == null || (me != null && job.getOrganization().getId() != me.getId().getOrganization().getId()))
+		if (job == null)
 			return null;
+		theOrgService.getMe(me, job.getOrganization().getId());
 		return job;
 	}
 
@@ -60,11 +68,11 @@ public class JobService {
 		if (!me.isManager())
 			throw new UnsupportedOperationException("You do not have permission to add jobs to this organization");
 		String name = StringUtils.getNewItemName(n -> theJobRepo.getByName(n) > 0, "A Job", StringUtils.SIMPLE_DUPLICATES);
-		Job job = new Job(me.getId().getOrganization(), name);
+		Job job = new Job(me.getOrganization(), name);
 		if (configure != null)
 			configure.accept(job);
 		theJobRepo.save(job);
-		theChanges.changed(new OrgGroupedJob(job.getOrganization().getId(), ApiJob.of(job)));
+		theEventPublisher.publishEvent(ChoresApplicationEvent.dataChange(this, me.getOrganization().getId(), "job", job.getId(), true));
 		return job;
 	}
 
@@ -78,11 +86,11 @@ public class JobService {
 		} catch (EntityNotFoundException e) {
 			throw new NoSuchElementException();
 		}
-		if (job == null || job.getOrganization().getId() != me.getId().getOrganization().getId())
+		if (job == null || job.getOrganization().getId() != me.getOrganization().getId())
 			throw new NoSuchElementException();
 		if (modify.test(job))
 			theJobRepo.save(job);
-		theChanges.changed(new OrgGroupedJob(job.getOrganization().getId(), ApiJob.of(job)));
+		theEventPublisher.publishEvent(ChoresApplicationEvent.dataChange(this, me.getOrganization().getId(), "job", job.getId(), true));
 		return job;
 	}
 
@@ -96,27 +104,13 @@ public class JobService {
 		} catch (EntityNotFoundException e) {
 			throw new NoSuchElementException();
 		}
-		if (job == null || job.getOrganization().getId() != me.getId().getOrganization().getId())
+		if (job == null || job.getOrganization().getId() != me.getOrganization().getId())
 			throw new NoSuchElementException();
 		theJobRepo.delete(job);
-		theChanges.changed(new OrgGroupedJob(job.getOrganization().getId(), ApiJob.deleted(jobId)));
+		theEventPublisher.publishEvent(ChoresApplicationEvent.dataChange(this, me.getOrganization().getId(), "job", job.getId(), false));
 	}
 
 	public void jobUpdated(Job job) {
-		theChanges.changed(new OrgGroupedJob(job.getOrganization().getId(), ApiJob.of(job)));
-	}
-
-	public EntityChangeSet.ChangeSet<ApiJob> getChanges(long orgId, long lastKnownChange) {
-		return theChanges.getChanges(lastKnownChange, job -> job.orgId == orgId, job -> job.job);
-	}
-
-	static class OrgGroupedJob {
-		final long orgId;
-		final ApiJob job;
-
-		OrgGroupedJob(long orgId, ApiJob job) {
-			this.orgId = orgId;
-			this.job = job;
-		}
+		theEventPublisher.publishEvent(ChoresApplicationEvent.dataChange(this, job.getOrganization().getId(), "job", job.getId(), true));
 	}
 }

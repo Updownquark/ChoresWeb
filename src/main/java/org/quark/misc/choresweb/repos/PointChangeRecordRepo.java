@@ -19,7 +19,7 @@ import org.springframework.data.repository.query.Param;
 public interface PointChangeRecordRepo extends JpaRepository<PointChangeRecord, Long> {
 	static final String SELECT_DTO = "SELECT new org.quark.misc.choresweb.entities.PointChangeRecord$FullPcrDto("//
 		+ "pcr.id, pcr.worker.id, pcr.changeType, pcr.changeSourceId, pcr.time, pcr.changeSourceName, pcr.beforePoints, pcr.pointChange,"//
-		+ " pcr.quantity, pcr.valueOrRate) FROM PointChangeRecord pcr";
+		+ " pcr.quantity, pcr.valueOrRate, pcr.notes) FROM PointChangeRecord pcr";
 
 	@Query("SELECT new org.quark.misc.choresweb.entities.PointChangeRecord$PcrKeyDto("//
 		+ "pcr.worker.id, pcr.changeType, pcr.changeSourceId, pcr.time)"//
@@ -89,7 +89,7 @@ public interface PointChangeRecordRepo extends JpaRepository<PointChangeRecord, 
 
 	@Modifying
 	default void deleteForMember(Membership member) {
-		deleteByOrganizationAndWorker(member.getId().getOrganization(), member.getId().getMember());
+		deleteByOrganizationAndWorker(member.getOrganization(), member.getMember());
 	}
 
 	@Modifying

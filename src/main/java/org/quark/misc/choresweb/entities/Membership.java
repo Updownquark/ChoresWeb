@@ -6,21 +6,36 @@ import org.qommons.Named;
 import org.springframework.format.annotation.DateTimeFormat;
 
 import jakarta.persistence.Column;
-import jakarta.persistence.EmbeddedId;
 import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
 import jakarta.persistence.Index;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import lombok.Getter;
 import lombok.Setter;
 
 @Entity
 @Table(name = "membership", indexes = { //
-	@Index(name = "members_by_org", columnList = "organization, member", unique = true)//
+	@Index(name = "members_by_org", columnList = "organization,member", unique = true)//
 })
 public class Membership implements Named {
-	@EmbeddedId
+	@Id
+	@GeneratedValue(strategy = GenerationType.IDENTITY)
 	@Getter
-	private MembershipId id;
+	private long id;
+
+	@ManyToOne(optional = false)
+	@JoinColumn(name = "organization")
+	@Getter
+	private Organization organization;
+
+	@ManyToOne(optional = false)
+	@JoinColumn(name = "member")
+	@Getter
+	private User member;
 
 	@Column(length = 100, nullable = false)
 	@Getter
@@ -57,12 +72,13 @@ public class Membership implements Named {
 	}
 
 	public Membership(Organization org, User member) {
-		id = new MembershipId(org, member);
+		this.organization = org;
+		this.member = member;
 	}
 
 	@Override
 	public String toString() {
-		String str = name + "(" + id.toString();
+		String str = name + "(" + organization + ":" + member + ")";
 		if (manager)
 			str += ", manager";
 		if (worker)

@@ -28,11 +28,14 @@
 			</column>
 			<column name="last_active" type="TIMESTAMP" />
 		</createTable>
-		<createIndex indexName="orgs_by_org" tableName="organization" unique="true">
+		<createIndex indexName="orgs_by_name" tableName="organization" unique="true">
 			<column name="name" />
 		</createIndex>
 		
 		<createTable tableName="membership">
+			<column name="id" type="BIGINT" autoIncrement="true">
+				<constraints primaryKey="true" nullable="false"/>
+			</column>
 			<column name="organization" type="BIGINT">
 				<constraints references="organization(id)" foreignKeyName="membership_org" nullable="false" />
 			</column>
@@ -49,7 +52,6 @@
 			<column name="points" type="BIGINT" />
 			<column name="last_active" type="TIMESTAMP" />
 		</createTable>
-		<addPrimaryKey tableName="membership" columnNames="organization,member" constraintName="membership_pk" />
 		<createIndex indexName="members_by_org" tableName="membership" unique="true">
 			<column name="organization" />
 			<column name="member" />
@@ -81,6 +83,9 @@
 		</createIndex>
 		
 		<createTable tableName="assignment">
+			<column name="id" type="BIGINT" autoIncrement="true">
+				<constraints primaryKey="true" nullable="false"/>
+			</column>
 			<column name="job" type="BIGINT">
 				<constraints references="job(id)" foreignKeyName="assignment_job" nullable="false" />
 			</column>
@@ -93,7 +98,10 @@
 			<column name="completed" type="INT" />
 			<column name="notes" type="VARCHAR(100)" />
 		</createTable>
-		<addPrimaryKey tableName="assignment" columnNames="job,worker" constraintName="work_pk" />
+		<createIndex indexName="assignments_by_job_and_worker" tableName="assignment" unique="true">
+			<column name="job" />
+			<column name="worker" />
+		</createIndex>
 		<createIndex indexName="assignments_by_org" tableName="assignment">
 			<column name="organization" />
 		</createIndex>

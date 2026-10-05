@@ -14,6 +14,7 @@ import java.util.function.Consumer;
 import org.qommons.TimeUtils;
 import org.qommons.io.NativeFileSource;
 import org.quark.misc.choresweb.api.ApiMembership;
+import org.quark.misc.choresweb.api.ChoresApplicationEvent;
 import org.quark.misc.choresweb.entities.Membership;
 import org.quark.misc.choresweb.entities.User;
 import org.quark.misc.choresweb.repos.AssignmentRepo;
@@ -21,8 +22,8 @@ import org.quark.misc.choresweb.repos.MembershipRepo;
 import org.quark.misc.choresweb.repos.PointChangeRecordRepo;
 import org.quark.misc.choresweb.repos.UserRepo;
 import org.quark.misc.choresweb.util.ChoresWebUtils;
-import org.quark.misc.choresweb.util.EntityChangeSet;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -41,14 +42,15 @@ public class UserService {
 	private final MembershipRepo theMembershipRepo;
 	private final AssignmentRepo theAssnRepo;
 	private final PointChangeRecordRepo thePointChangeRepo;
+	private final ApplicationEventPublisher theEventPublisher;
 
-	private final EntityChangeSet<BinaryId, OrgGroupedMember> theChanges = new EntityChangeSet<>(member -> member.id, 15000);
-
-	public UserService(UserRepo userRepo, MembershipRepo membershipRepo, AssignmentRepo assnRepo, PointChangeRecordRepo pointChangeRepo) {
+	public UserService(UserRepo userRepo, MembershipRepo membershipRepo, AssignmentRepo assnRepo, PointChangeRecordRepo pointChangeRepo,
+		ApplicationEventPublisher eventPublisher) {
 		theUserRepo = userRepo;
 		theMembershipRepo = membershipRepo;
 		theAssnRepo = assnRepo;
 		thePointChangeRepo = pointChangeRepo;
+		theEventPublisher = eventPublisher;
 
 		theWhiteList = new HashSet<>();
 	}
@@ -81,12 +83,17 @@ public class UserService {
 
 	@Transactional
 	public User getMe(Jwt user) {
-		String email = user.getClaimAsString("email");
-		if (email == null)
-			email = user.getSubject();
+		String email = getUserEmail(user);
 		if (email == null)
 			return null;
 		return getUserCreateIfAdmin(email);
+	}
+
+	public static String getUserEmail(Jwt user) {
+		String email = user.getClaimAsString("email");
+		if (email == null)
+			email = user.getSubject();
+		return email;
 	}
 
 	@Transactional
@@ -120,14 +127,14 @@ public class UserService {
 
 	@Transactional(readOnly = true)
 	public List<Membership> getMembers(Membership me) {
-		return theMembershipRepo.getMembership(me.getId().getOrganization());
+		return theMembershipRepo.getMembership(me.getOrganization());
 	}
 
 	@Transactional(readOnly = true)
-	public EntityChangeSet.ChangeSet<ApiMembership> getApiMembers(Membership me) {
-		return theChanges.getValues(() -> theMembershipRepo.getMembership(me.getId().getOrganization()).stream()//
+	public List<ApiMembership> getApiMembers(Membership me) {
+		return theMembershipRepo.getMembership(me.getOrganization()).stream()//
 			.map(member -> ApiMembership.of(member, true, true))//
-			.toList());
+			.toList();
 	}
 
 	@Transactional
@@ -135,25 +142,27 @@ public class UserService {
 		if (!me.isManager())
 			throw new UnsupportedOperationException("You do not have permission to add members to this organization");
 		User user = getOrCreateUser(targetUserEmail);
-		Membership current = theMembershipRepo.getMembership(user.getId(), me.getId().getOrganization().getId());
+		Membership current = theMembershipRepo.getMembership(user.getId(), me.getOrganization().getId());
 		if (current != null)
 			return current;
 
-		Membership membership = new Membership(me.getId().getOrganization(), user);
+		Membership membership = new Membership(me.getOrganization(), user);
 		String name = user.getEmail();
 		int at = name.indexOf('@');
 		if (at > 0)
 			name = name.substring(0, at);
 		if (name.length() > 100)
 			name = name.substring(0, 100);
-		name = ChoresWebUtils.getNewName(theMembershipRepo.getMembership(me.getId().getOrganization()), 100, name);
+		name = ChoresWebUtils.getNewName(theMembershipRepo.getMembership(me.getOrganization()), 100, name);
 		membership.setName(name);
 		membership.setWorker(true);
 		membership.setLastActive(Instant.now());
 		if (configure != null)
 			configure.accept(membership);
 		theMembershipRepo.save(membership);
-		theChanges.changed(new OrgGroupedMember(membership.getId().getOrganization().getId(), ApiMembership.of(membership, false, true)));
+		theEventPublisher.publishEvent(ChoresApplicationEvent.securityMutation(this, me.getOrganization().getId(), user.getId(), true));
+		theEventPublisher
+			.publishEvent(ChoresApplicationEvent.dataChange(this, me.getOrganization().getId(), "membership", membership.getId(), true));
 		return membership;
 	}
 
@@ -161,13 +170,13 @@ public class UserService {
 	public Membership modifyWorker(Membership me, ModifyWorkerCommand command) {
 		if (!me.isManager())
 			throw new UnsupportedOperationException("You do not have permission to modify members in this organization");
-		Membership member = theMembershipRepo.getMembership(command.userId(), me.getId().getOrganization().getId());
+		Membership member = theMembershipRepo.getMembership(command.userId(), me.getOrganization().getId());
 		if (member == null)
 			throw new NoSuchElementException("No such member");
 
 		boolean changed = false;
 		if (command.manager() != null) {
-			if (!command.manager() && member.getId().getMember().getId() == me.getId().getMember().getId())
+			if (!command.manager() && member.getMember().getId() == me.getMember().getId())
 				throw new IllegalArgumentException("You cannot take away your own manager status");
 			if (command.manager().booleanValue() != member.isManager()) {
 				member.setManager(command.manager());
@@ -184,43 +193,32 @@ public class UserService {
 
 		if (changed) {
 			theMembershipRepo.save(member);
-			theChanges.changed(new OrgGroupedMember(member.getId().getOrganization().getId(), ApiMembership.of(member, false, true)));
+			theEventPublisher.publishEvent(
+				ChoresApplicationEvent.dataChange(this, me.getOrganization().getId(), "membership", member.getId(), true));
 		}
 		return member;
 	}
 
 	@Transactional
 	public void removeWorker(Membership me, long targetUser) {
-		Membership target = theMembershipRepo.getMembership(targetUser, me.getId().getOrganization().getId());
+		Membership target = theMembershipRepo.getMembership(targetUser, me.getOrganization().getId());
 		if (target == null)
 			throw new NoSuchElementException("No such member");
 		if (!me.isManager())
 			throw new UnsupportedOperationException("You do not have permission to remove members from this organization");
-		else if (me.getId().getOrganization().getId() != target.getId().getOrganization().getId())
+		else if (me.getOrganization().getId() != target.getOrganization().getId())
 			throw new UnsupportedOperationException("You must sign in to the organization you want to manage as a manager");
 		thePointChangeRepo.deleteForMember(target);
 		theAssnRepo.deleteForMember(target);
 		theMembershipRepo.delete(target);
-		theChanges.changed(new OrgGroupedMember(target.getId().getOrganization().getId(), ApiMembership.deleted(target, false, true)));
+		theEventPublisher.publishEvent(
+			ChoresApplicationEvent.dataChange(this, me.getOrganization().getId(), "membership", target.getId(), false));
+		theEventPublisher
+			.publishEvent(ChoresApplicationEvent.securityMutation(this, me.getOrganization().getId(), target.getMember().getId(), false));
 	}
 
 	public void memberUpdated(Membership member) {
-		theChanges.changed(new OrgGroupedMember(member.getId().getOrganization().getId(), ApiMembership.of(member, false, true)));
-	}
-
-	public EntityChangeSet.ChangeSet<ApiMembership> getChanges(long orgId, long lastKnownChange) {
-		return theChanges.getChanges(lastKnownChange, member -> member.orgId == orgId, member -> member.member);
-	}
-
-	static class OrgGroupedMember {
-		final long orgId;
-		final BinaryId id;
-		final ApiMembership member;
-
-		OrgGroupedMember(long orgId, ApiMembership member) {
-			this.orgId = orgId;
-			this.id = new BinaryId(orgId, member.member().id());
-			this.member = member;
-		}
+		theEventPublisher.publishEvent(
+			ChoresApplicationEvent.dataChange(this, member.getOrganization().getId(), "membership", member.getId(), true));
 	}
 }

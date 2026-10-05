@@ -2,6 +2,7 @@ logging:
   level:
     org:
       springframework:
+        '': INFO
         security: DEBUG
         web: DEBUG
         beans:
@@ -17,8 +18,14 @@ spring:
     username: ${DB_USERNAME}
     password: ${DB_PASSWORD}
   jpa:
+    open-in-view: false
     hibernate:
       ddl-auto: validate
+    Xproperties:
+      hibernate:
+        cache:
+          use_second_level_cache: true
+          use_query_cache: true
     show-sql: false
   liquibase:
     enabled: true
@@ -42,3 +49,5 @@ chores:
     clientId: 823804539715-mb7lamcmkpoihnt297fevkrf1h3sgi1f.apps.googleusercontent.com
     secret: ${CHORES_JWT_SECRET:a1d4d689be3962eb4012744d1eb32c834ffcb44f1e451cace4f2c6b18ccda7b3bb03a315b995b3d957b3a99af4f5e95c1571697ea030e1733bb9740e}
   whitelist: ${DEV_APP_DATA}/whitelist.txt
+  sync:
+    cacheTimeout: 20s

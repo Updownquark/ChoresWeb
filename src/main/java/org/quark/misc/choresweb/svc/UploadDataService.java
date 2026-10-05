@@ -96,7 +96,7 @@ public class UploadDataService {
 					.with("maxLevel", false, s -> s.equals("null") ? 100 : Integer.valueOf(s))//
 					.with("points", false, s -> Integer.valueOf(s))//
 					.with("priority", false, s -> Integer.valueOf(s))//
-					.with("lastDone", false, s -> TimeUtils.parseInstant(s, true, true, teo -> teo.localTime()))//
+					.with("lastDone", false, s -> TimeUtils.parseInstant(s, true, true, teo -> teo.localTime()).evaluate(Instant::now))//
 				;
 				for (var line = typedParser.parseNextLine(); line != null; line = typedParser.parseNextLine()) {
 					String name = line.getValue2();
@@ -257,7 +257,7 @@ public class UploadDataService {
 					}
 
 					if (existingHistory
-						.contains(new PointHistoryKey(worker.getId().getMember().getId(), time, changeType, changeSourceId))) {
+						.contains(new PointHistoryKey(worker.getMember().getId(), time, changeType, changeSourceId))) {
 						preExisting++;
 						continue;
 					}
@@ -298,10 +298,10 @@ public class UploadDataService {
 						System.err.println("Unrecognized job with ID " + line.getValue2());
 						continue;
 					}
-					Assignment assn = theAssnRepo.getByJobAndWorker(job, worker.getId().getMember());
+					Assignment assn = theAssnRepo.getByJobAndWorker(job, worker.getMember());
 					boolean newAssn = assn == null;
 					if (assn == null) {
-						assn = new Assignment(job, worker.getId().getMember());
+						assn = new Assignment(job, worker.getMember());
 						assn.setCompleted(line.getValue3());
 						newAssns.add(assn);
 					} else

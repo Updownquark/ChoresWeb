@@ -48,11 +48,11 @@ const ResourcesUI: React.FC<ChoresTabParams> = ({api, org, visible})=>{
 	}
 	
 	const addResource=()=>{
-		resourcesService.modify("PUT", "/api/resources", {
+		api.put<PointResource>("/api/resources", {
 			orgId: org.organization!.id,
-		}).then(event=>{
-			if(event.added)
-				setEditResource(event.added.values().next().value!);
+		}).then(response=>{
+			if(response.data)
+				setEditResource(response.data);
 		});
 	};
 
@@ -62,28 +62,28 @@ const ResourcesUI: React.FC<ChoresTabParams> = ({api, org, visible})=>{
 
 	const doDeleteResource=()=>{
 		setConfirmingDelete(false);
-		resourcesService.modify("DELETE", "/api/resources/"+editResource!.id).then(()=>setEditResource(null));
+		api.delete("/api/resources/"+editResource!.id).then(()=>setEditResource(null));
 	};
 	const renameResource=(rsrc: PointResource, newName: string)=>{
-		resourcesService.modify("PUT", "/api/resources", {
+		api.put("/api/resources", {
 			orgId: org.organization!.id,
 			resourceId: rsrc.id,
 			name: newName,
-		})
+		});
 	};
 	const setResourceRate=(rsrc: PointResource, newRate: number)=>{
-		resourcesService.modify("PUT", "/api/resources", {
+		api.put("/api/resources", {
 			orgId: org.organization!.id,
 			resourceId: rsrc.id,
 			rate: newRate,
-		})
+		});
 	};
 	const setResourceUnit=(rsrc: PointResource, unit: string | null)=>{
-		resourcesService.modify("PUT", "/api/resources", {
+		api.put("/api/resources", {
 			orgId: org.organization!.id,
 			resourceId: rsrc.id,
 			unit: unit,
-		})
+		});
 	};
 
 	return <Box sx={{

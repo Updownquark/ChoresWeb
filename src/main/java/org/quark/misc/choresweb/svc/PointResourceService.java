@@ -10,12 +10,14 @@ import java.util.function.Predicate;
 import org.qommons.StringUtils;
 import org.quark.misc.choresweb.api.ApiPointResource;
 import org.quark.misc.choresweb.api.ApiResourceUsage;
+import org.quark.misc.choresweb.api.ChoresApplicationEvent;
 import org.quark.misc.choresweb.entities.Membership;
 import org.quark.misc.choresweb.entities.Organization;
 import org.quark.misc.choresweb.entities.PointChangeRecord;
 import org.quark.misc.choresweb.entities.PointResource;
 import org.quark.misc.choresweb.repos.PointResourceRepo;
-import org.quark.misc.choresweb.util.EntityChangeSet;
+import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -25,14 +27,18 @@ import jakarta.persistence.EntityNotFoundException;
 public class PointResourceService {
 	private final PointResourceRepo theResourceRepo;
 	private final UserService theUserService;
+	private final OrganizationService theOrgService;
 	private final PointHistoryService theHistoryService;
+	private final ApplicationEventPublisher theEventPublisher;
 
-	private final EntityChangeSet<Long, OrgGroupedResource> theChanges = new EntityChangeSet<>(rsrc -> rsrc.resource.id(), 15000);
-
-	public PointResourceService(PointResourceRepo resourceRepo, UserService userService, PointHistoryService historyService) {
+	public PointResourceService(PointResourceRepo resourceRepo, UserService userService, OrganizationService orgService,
+		PointHistoryService historyService,
+		ApplicationEventPublisher eventPublisher) {
 		theResourceRepo = resourceRepo;
 		theUserService = userService;
+		theOrgService = orgService;
 		theHistoryService = historyService;
+		theEventPublisher = eventPublisher;
 	}
 
 	@Transactional(readOnly = true)
@@ -41,22 +47,23 @@ public class PointResourceService {
 	}
 
 	@Transactional(readOnly = true)
-	public EntityChangeSet.ChangeSet<ApiPointResource> getApiResources(Membership me) {
-		return theChanges.getValues(() -> theResourceRepo.getOrgResources(me.getId().getOrganization()).stream()//
+	public List<ApiPointResource> getApiResources(Membership me) {
+		return theResourceRepo.getOrgResources(me.getOrganization()).stream()//
 			.map(ApiPointResource::of)//
-			.toList());
+			.toList();
 	}
 
 	@Transactional(readOnly = true)
-	public PointResource getById(Membership member, long resourceId) {
+	public PointResource getById(Jwt user, long resourceId) {
 		PointResource resource;
 		try {
 			resource = theResourceRepo.getReferenceById(resourceId);
 		} catch (EntityNotFoundException e) {
 			return null;
 		}
-		if (resource == null || (member != null && resource.getOrganization().getId() != member.getId().getOrganization().getId()))
+		if (resource == null)
 			return null;
+		Membership me = theOrgService.getMe(user, resource.getOrganization().getId());
 		return resource;
 	}
 
@@ -70,16 +77,17 @@ public class PointResourceService {
 		if (!member.isManager())
 			throw new UnsupportedOperationException("You do not have permission to add resources to this organization");
 		String name = StringUtils.getNewItemName(n -> theResourceRepo.getByName(n) > 0, "A Resource", StringUtils.SIMPLE_DUPLICATES);
-		PointResource resource = new PointResource(member.getId().getOrganization(), name);
+		PointResource resource = new PointResource(member.getOrganization(), name);
 		if (configure != null)
 			configure.accept(resource);
 		theResourceRepo.save(resource);
-		theChanges.changed(new OrgGroupedResource(resource));
+		theEventPublisher
+			.publishEvent(ChoresApplicationEvent.dataChange(this, member.getOrganization().getId(), "resource", resource.getId(), true));
 		return resource;
 	}
 
 	@Transactional
-	public void modifyResource(Membership member, long resourceId, Predicate<PointResource> modify) {
+	public PointResource modifyResource(Membership member, long resourceId, Predicate<PointResource> modify) {
 		if (!member.isManager())
 			throw new UnsupportedOperationException("You do not have permission to modify resources in this organization");
 		PointResource resource;
@@ -88,12 +96,14 @@ public class PointResourceService {
 		} catch (EntityNotFoundException e) {
 			throw new NoSuchElementException();
 		}
-		if (resource == null || resource.getOrganization().getId() != member.getId().getOrganization().getId())
+		if (resource == null || resource.getOrganization().getId() != member.getOrganization().getId())
 			throw new NoSuchElementException();
 		if (modify.test(resource)) {
 			theResourceRepo.save(resource);
-			theChanges.changed(new OrgGroupedResource(resource));
+			theEventPublisher.publishEvent(
+				ChoresApplicationEvent.dataChange(this, member.getOrganization().getId(), "resource", resource.getId(), true));
 		}
+		return resource;
 	}
 
 	@Transactional
@@ -106,17 +116,18 @@ public class PointResourceService {
 		} catch (EntityNotFoundException e) {
 			throw new NoSuchElementException();
 		}
-		if (resource == null || resource.getOrganization().getId() != member.getId().getOrganization().getId())
+		if (resource == null || resource.getOrganization().getId() != member.getOrganization().getId())
 			throw new NoSuchElementException();
 		theResourceRepo.delete(resource);
-		theChanges.changed(OrgGroupedResource.delete(resource));
+		theEventPublisher
+			.publishEvent(ChoresApplicationEvent.dataChange(this, member.getOrganization().getId(), "resource", resource.getId(), false));
 	}
 
 	@Transactional
 	public void redeemPoints(Membership me, long workerId, List<ApiResourceUsage> usage) {
 		if (!me.isManager())
 			throw new UnsupportedOperationException("You do not have permission to enact resource usage for this organization");
-		Membership worker = theUserService.getMembership(me.getId().getOrganization().getId(), workerId);
+		Membership worker = theUserService.getMembership(me.getOrganization().getId(), workerId);
 		if (worker == null)
 			throw new IllegalArgumentException("The given user is not a member of this organization");
 		else if (!worker.isWorker())
@@ -124,7 +135,7 @@ public class PointResourceService {
 		List<PointChangeRecord> history = new ArrayList<>(usage.size());
 		for (var rsrc : usage) {
 			PointResource resource = theResourceRepo.findById(rsrc.resourceId()).orElse(null);
-			if (resource == null || resource.getOrganization() != me.getId().getOrganization())
+			if (resource == null || resource.getOrganization() != me.getOrganization())
 				throw new IllegalArgumentException("No such resource with ID " + rsrc.resourceId() + " in this organization");
 			double amount = rsrc.points() * resource.getRate();
 			PointChangeRecord record = new PointChangeRecord(resource, worker, Instant.now(), amount);
@@ -137,29 +148,7 @@ public class PointResourceService {
 	}
 
 	public void resourceUpdated(PointResource rsrc) {
-		theChanges.changed(new OrgGroupedResource(rsrc));
-	}
-
-	public EntityChangeSet.ChangeSet<ApiPointResource> getChanges(long orgId, long lastKnownChange) {
-		return theChanges.getChanges(lastKnownChange, rsrc -> rsrc.orgId == orgId, rsrc -> rsrc.resource);
-	}
-
-	static class OrgGroupedResource {
-		final long orgId;
-		final ApiPointResource resource;
-
-		OrgGroupedResource(long orgId, ApiPointResource resource) {
-			this.orgId = orgId;
-			this.resource = resource;
-		}
-
-		OrgGroupedResource(PointResource resource) {
-			orgId = resource.getOrganization().getId();
-			this.resource = ApiPointResource.of(resource);
-		}
-
-		static OrgGroupedResource delete(PointResource resource) {
-			return new OrgGroupedResource(resource.getOrganization().getId(), ApiPointResource.deleted(resource));
-		}
+		theEventPublisher
+			.publishEvent(ChoresApplicationEvent.dataChange(this, rsrc.getOrganization().getId(), "resource", rsrc.getId(), true));
 	}
 }

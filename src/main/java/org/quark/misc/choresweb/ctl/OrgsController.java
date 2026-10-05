@@ -49,7 +49,7 @@ public class OrgsController {
 
 	@PostMapping("/add")
 	public ApiMembership add(@AuthenticationPrincipal Jwt user) {
-		Membership org = theOrgSvc.addOrganization(user.getClaimAsString("email"));
+		Membership org = theOrgSvc.addOrganization(UserService.getUserEmail(user));
 		return ApiMembership.of(org, true, false);
 	}
 

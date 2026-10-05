@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useSyncExternalStore } from "react";
 import { GoogleLogin, GoogleOAuthProvider } from "@react-oauth/google";
 import { CLIENT_ID } from "./config/backend";
 import { myTheme } from "./theme";
@@ -8,9 +8,10 @@ import User from "./values/User";
 import Membership from "./values/Membership";
 import OrganizationList from "./components/OrganziationList";
 import OrganizationUI from "./components/OrganizationUI";
-import { authService, api, lifeCycle, jobService, memberService, assignmentService, resourcesService, historyService, debug} from "./services/services";
+import { authService, api, lifeCycle, jobService, memberService, assignmentService, resourcesService, debug, syncService, orgsService} from "./services/services";
 import { CustomLogin } from "./components/util/CustomLogin";
 import { LifeCycleStage } from "./services/LifeCycleService";
+import Banner from "./components/util/Banner";
 
 const appName="Chore Champ";
 
@@ -29,37 +30,51 @@ export function org(): Membership | null {
 	return _org;
 }
 
+const subscribeToOrgs=orgsService.onChange.bind(orgsService);
+const getOrgsSnapshot=orgsService.getAll.bind(orgsService);
+
 function ChoreChampApp() {
 	const [me, setMe] = useState<User | null>(null);
 	const [loading, setLoading] = useState<LoadingStage | null>(null);
-	const [orgs, setOrgs] = useState<readonly Membership[] | null>();
+	const orgs=useSyncExternalStore(subscribeToOrgs, getOrgsSnapshot);
 	const [org, _setOrg] = useState<Membership | null>(null);
+
+	useEffect(()=>{
+		if(org)
+			return;
+		if (!_me?.canCreateOrgs && orgs.length == 1){
+			setOrg(orgs[0]);
+		} else {
+			const orgIdStr=sessionStorage.getItem("selectedOrg");
+			if(orgIdStr){
+				const orgId=parseInt(orgIdStr);
+				for(const org of orgs){
+					if(org.organization!.id==orgId){
+						setOrg(org);
+						break;
+					}
+				}
+			}
+		}
+		if(loading)
+			setLoading(null);
+	}, [orgs]);
 
 	const setOrg=(org: Membership | null)=>{
 		if(org && org.organization){
 			sessionStorage.setItem("selectedOrg", org.organization!.id.toString());
 			document.title=appName+": "+org.organization!.name;
-			jobService.init(
-				"/api/jobs/by-org/"+org.organization!.id,
-				"/api/jobs/changes/"+org.organization!.id,
-				lifeCycle);
-			memberService.init(
-				"/api/members/by-org/"+org.organization!.id,
-				"/api/members/changes/"+org.organization!.id,
-				lifeCycle);
-			assignmentService.init(
-				"/api/assignments/by-org/"+org.organization!.id,
-				"/api/assignments/changes/"+org.organization!.id,
-				lifeCycle);
-			resourcesService.init(
-				"/api/resources/by-org/"+org.organization!.id,
-				"/api/resources/changes/"+org.organization!.id,
-				lifeCycle);
-			historyService.init(org.organization!.id, lifeCycle);
+			jobService.init(org.organization!.id);
+			memberService.init(org.organization!.id);
+			assignmentService.init(org.organization!.id);
+			resourcesService.init(org.organization!.id);
+			syncService.connect(org.organization!.id);
 			if(!debug && lifeCycle.getStage()==LifeCycleStage.PreInit)
 				lifeCycle.start();
-		} else
+		} else{
 			document.title=appName;
+			sessionStorage.removeItem("selectedOrg");
+		}
 		_setOrg(org);
 	};
 
@@ -88,30 +103,12 @@ function ChoreChampApp() {
 	};
 
 	const fetchOrgs = async () => {
-		let targetLoadingStage: LoadingStage | null = null;
+		setLoading(LoadingStage.Orgs);
 		try {
-			const response = await api.get<Membership[]>("/api/orgs");
-			const _orgs = response.data;
-			setOrgs(_orgs);
-			if (!_me?.canCreateOrgs && _orgs.length == 1){
-				setOrg(org);
-			} else {
-				const orgIdStr=sessionStorage.getItem("selectedOrg");
-				if(orgIdStr){
-					const orgId=parseInt(orgIdStr);
-					for(const org of _orgs){
-						if(org.organization!.id==orgId){
-							setOrg(org);
-							break;
-						}
-					}
-				}
-			}
+			orgsService.init();
 		} catch (error) {
 			console.error("API Error:", error);
 			setMe(null);
-		} finally {
-			setLoading(targetLoadingStage);
 		}
 	};
 
@@ -128,21 +125,19 @@ function ChoreChampApp() {
 			break;
 	}
 
+	const exitOrg=()=>setOrg(null);
+
 	if (loading) {
 		return (
 			<Container sx={{ width: "100%", mt: 4 }}>
-				<Typography variant="h4" component="h1" gutterBottom>
-					Loading...
-				</Typography>
+				<Banner title="Loading..." org={org} exitOrg={exitOrg} />
 				{loadingStatusMessage}
 			</Container>
 		);
 	} else if (!me) {
 		return (
 			<Container sx={{ width: "100%", mt: 4 }}>
-				<Typography variant="h4" component="h1" gutterBottom>
-					Internal Server Error
-				</Typography>
+				<Banner title="Internal Server Error" org={org} exitOrg={exitOrg} />
 				An error has occurred on the server and the application cannot be
 				accessed
 			</Container>
@@ -150,9 +145,7 @@ function ChoreChampApp() {
 	} else if (me.id == -1) {
 		return (
 			<Container sx={{ width: "100%", mt: 4 }}>
-				<Typography variant="h4" component="h1" gutterBottom>
-					Unrecognized User
-				</Typography>
+				<Banner title="Unrecognized User" org={org} exitOrg={exitOrg} />
 				You need to be added to an organization by an organization admin to
 				access this application.
 			</Container>
@@ -160,18 +153,14 @@ function ChoreChampApp() {
 	} else if(org){
 		return (
 			<Container sx={{ width: "100%", mt: 4 }}>
-				<Typography variant="h4" component="h1" gutterBottom>
-					Chore Champ
-				</Typography>
+				<Banner title="Chore Champ" org={org} exitOrg={exitOrg} />
 				<OrganizationUI org={org} api={api} />
 			</Container>
 		);
 	} else if (me.canCreateOrgs) {
 		return (
 			<Container sx={{ width: "100%", mt: 4 }}>
-				<Typography variant="h4" component="h1" gutterBottom>
-					Select the Organization to View
-				</Typography>
+				<Banner title="Select the Organization to View" org={org} exitOrg={exitOrg} />
 				{orgs ? (
 					<OrganizationList
 						orgs={orgs}
@@ -196,9 +185,7 @@ function ChoreChampApp() {
 	} else if (orgs == null || orgs.length == 0) {
 		return (
 			<Container sx={{ width: "100%", mt: 4 }}>
-				<Typography variant="h4" component="h1" gutterBottom>
-					No Organization Memberships
-				</Typography>
+				<Banner title="No Organization Memberships" org={org} exitOrg={exitOrg} />
 				You need to be added to an organization by an organization admin to
 				access this application.
 			</Container>
@@ -206,9 +193,7 @@ function ChoreChampApp() {
 	} else {
 		return (
 			<Container sx={{ width: "100%", mt: 4 }}>
-				<Typography variant="h4" component="h1" gutterBottom>
-					Select the Organization to View
-				</Typography>
+				<Banner title="Select the Organization to View" org={org} exitOrg={exitOrg} />
 				<OrganizationList
 					orgs={orgs}
 					setOrg={(orgId) => {
@@ -247,7 +232,7 @@ function App() {
 						)}
 						onFail={
 							<div style={{ color: "red", textAlign: "center"}}>
-								<h1>ChoreChamp Login Failed, please try again.</h1>
+								<h1>Chore Champ is unavailable, please try again later.</h1>
 							</div>
 						}>
 						<ChoreChampApp />

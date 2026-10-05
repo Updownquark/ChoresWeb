@@ -7,55 +7,10 @@ import org.quark.misc.choresweb.entities.Job;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 
-public record ApiJob(long id, String name, int value, int minLevel, int maxLevel, Set<String> inclusionLabels,
-	Set<String> exclusionLabels, int priority, boolean active, Instant lastDone, boolean deleted) {
-
-	public long id() {
-		return id;
-	}
-
-	@JsonInclude(JsonInclude.Include.NON_NULL)
-	public String name() {
-		return name;
-	}
-
-	public int value() {
-		return value;
-	}
-
-	public int minLevel() {
-		return minLevel;
-	}
-
-	public int maxLevel() {
-		return maxLevel;
-	}
-
-	@JsonInclude(JsonInclude.Include.NON_NULL)
-	public Set<String> inclusionLabels() {
-		return inclusionLabels;
-	}
-
-	@JsonInclude(JsonInclude.Include.NON_NULL)
-	public Set<String> exclusionLabels() {
-		return exclusionLabels;
-	}
-
-	public int priority() {
-		return priority;
-	}
-
-	public boolean active() {
-		return active;
-	}
-
-	public Instant lastDone() {
-		return lastDone;
-	}
-
-	public boolean deleted() {
-		return deleted;
-	}
+public record ApiJob(long id, @JsonInclude(JsonInclude.Include.NON_NULL) String name, int value, int minLevel, int maxLevel,
+	@JsonInclude(JsonInclude.Include.NON_NULL) Set<String> inclusionLabels, //
+	@JsonInclude(JsonInclude.Include.NON_NULL) Set<String> exclusionLabels, //
+	int priority, boolean active, Instant lastDone, boolean deleted) {
 
 	public static ApiJob of(Job job) {
 		return new ApiJob(job.getId(), job.getName(), job.getValue(), job.getMinLevel(), job.getMaxLevel(), //

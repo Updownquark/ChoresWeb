@@ -9,7 +9,7 @@ class AssignmentService extends EntitySetService<Assignment>{
 	private readonly  _assignmentsByJob = new Map<number, Map<number, Assignment>>();
 
 	constructor(api: AxiosInstance){
-		super(api);
+		super(api, "assignment", "/api/assignments");
 	}
 
 	public getUserAssignments(userId: number): ReadonlyMap<number, Assignment>{
@@ -31,10 +31,6 @@ class AssignmentService extends EntitySetService<Assignment>{
 		if(comp==0)
 			comp=assn2.jobId-assn1.jobId;
 		return comp;
-	}
-
-	isDeleted(assn: Assignment){
-		return assn.deleted;
 	}
 
 	added(index: number, assn: Assignment){

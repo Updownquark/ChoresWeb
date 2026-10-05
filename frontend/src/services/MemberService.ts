@@ -5,16 +5,17 @@ import * as Utils from "../util/Utils";
 
 class MemberService extends EntitySetService<Membership>{
 	private _workers: readonly Membership []=[];
+	private readonly _membersByUserId= new Map<number, Membership>();
 
 	constructor(api: AxiosInstance){
-		super(api);
+		super(api, "membership", "/api/members");
 		this.onChange(()=>{
 			this._workers=this.getAll().filter(m=>m.worker);
 		});
 	}
 
 	getId(member: Membership): number{
-		return member.member!.id;
+		return member.id;
 	}
 
 	compare(member1: Membership, member2: Membership): number{
@@ -24,11 +25,27 @@ class MemberService extends EntitySetService<Membership>{
 		return comp;
 	}
 
-	isDeleted(member: Membership){
-		return member.deleted;
-	}
 	public getWorkers(): readonly Membership[]{
 		return this._workers;
+	}
+
+	public getByUserId(id: number): Membership | undefined{
+		return this._membersByUserId.get(id);
+	}
+
+	protected added(index: number, entity: Membership): void {
+		super.added(index, entity);
+		this._membersByUserId.set(entity.member!.id, entity);
+	}
+
+	protected updated(index: number, entity: Membership): void {
+		super.updated(index, entity);
+		this._membersByUserId.set(entity.member!.id, entity);
+	}
+
+	protected deleted(index: number, entity: Membership): void {
+		super.deleted(index, entity);
+		this._membersByUserId.delete(entity.member!.id);
 	}
 };
 

@@ -1,19 +1,28 @@
-import { IconButton, Popover } from "@mui/material";
-import React, { useState } from "react";
+import { IconButton, Menu } from "@mui/material";
+import React, { useEffect, useState } from "react";
 import SettingsIcon from "@mui/icons-material/Settings";
 
-const SettingsMenu: React.FC<{ content: React.ReactNode }> = ({ content }) => {
-	const [settingsAnchor, setSettingsAnchor] = useState(null);
+interface SettingsMenuProps{
+	children: React.ReactNode;
+	close: (doClose: ()=>void)=>void;
+}
+
+const SettingsMenu: React.FC<SettingsMenuProps> = ({ children, close }) => {
+	const [settingsAnchor, setSettingsAnchor] = useState<HTMLButtonElement | null>(null);
 	// const settingsOpen = Boolean(settingsAnchor);
 	const openSettings = (e: React.MouseEvent<HTMLButtonElement>) => setSettingsAnchor(e.currentTarget);
 	const closeSettings = () => setSettingsAnchor(null);
 
+	useEffect(()=>{
+		close(()=>setSettingsAnchor(null));
+	}, [close]);
+
 	return (
 		<>
-			<IconButton onClick={openSettings}>
+			<IconButton sx={{border: "none !important"}} onClick={openSettings}>
 				<SettingsIcon />
 			</IconButton>
-			<Popover
+			<Menu
 				open={Boolean(settingsAnchor)}
 				anchorEl={settingsAnchor}
 				onClose={closeSettings}
@@ -21,8 +30,8 @@ const SettingsMenu: React.FC<{ content: React.ReactNode }> = ({ content }) => {
 					vertical: "top",
 					horizontal: "right",
 				}}>
-				{content}
-			</Popover>
+				{children}
+			</Menu>
 		</>
 	);
 };

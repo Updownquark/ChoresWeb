@@ -2,6 +2,7 @@ import Organization from "./Organization";
 import User from "./User";
 
 interface Membership {
+	readonly id: number;
 	readonly member: User | null;
 	readonly organization: Organization | null;
 	readonly name: string;
@@ -10,7 +11,6 @@ interface Membership {
 	readonly level: number;
 	readonly points: number;
 	readonly labels: readonly string [];
-	deleted: boolean;
 }
 
 export default Membership;
