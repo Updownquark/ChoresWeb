@@ -1,7 +1,8 @@
 interface User {
 	readonly id: number;
 	readonly email: string;
-	readonly canCreateOrgs: boolean;
+	readonly god: boolean;
+	readonly globalAdmin: boolean;
 }
 
 export function usersEqual(user1: User, user2: User | null): boolean {

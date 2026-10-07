@@ -16,6 +16,8 @@ public interface JobRepo extends JpaRepository<Job, Long> {
 	@Query("SELECT COUNT(*) FROM Job org WHERE org.name=:name")
 	int getByName(@Param("name") String name);
 
+	List<Job> getByOrganizationId(long orgId);
+
 	@Modifying
 	void deleteByOrganization(Organization organization);
 

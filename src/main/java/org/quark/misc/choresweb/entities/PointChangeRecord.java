@@ -4,26 +4,16 @@ import java.time.Instant;
 
 import org.springframework.format.annotation.DateTimeFormat;
 
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.Index;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.ManyToOne;
-import jakarta.persistence.Table;
+import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
 
 @Entity
 @Table(name = "point_change_record",
-	indexes = { //
-		@Index(name = "point_changes_by_source", columnList = "organization,change_type,change_source_id,time"), //
-		@Index(name = "work_by_worker", columnList = "organization,worker,time"),//
-	})
+indexes = { //
+	@Index(name = "point_changes_by_source", columnList = "organization,change_type,change_source_id,time"), //
+	@Index(name = "work_by_worker", columnList = "organization,worker,time"),//
+})
 public class PointChangeRecord implements Comparable<PointChangeRecord> {
 	@Id
 	@GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -137,10 +127,15 @@ public class PointChangeRecord implements Comparable<PointChangeRecord> {
 		return worker + " " + changeType + " " + changeSourceName + " (" + pointChange + ")";
 	}
 
-	public static record FullPcrDto(long id, long workerId, PointChangeType changeType, long changeSourceId, Instant time,
-		String changeSourceName, long beforePoints, int pointChange, double quantity, double valueOrRate, String notes) {
+	public static record FullPcrDto(long id, long workerId, long organization, PointChangeType changeType, long changeSourceId,
+		Instant time, String changeSourceName, long beforePoints, int pointChange, double quantity, double valueOrRate, String notes) {
+
+		public static FullPcrDto of(PointChangeRecord record) {
+			return new FullPcrDto(record.getId(), record.getWorker().getId(), record.getOrganization().getId(), record.getChangeType(),
+				record.getChangeSourceId(), record.getTime(), record.getChangeSourceName(), record.getBeforePoints(),
+				record.getPointChange(), record.getQuantity(), record.getValueOrRate(), record.getNotes());
+		}
 	}
 
-	public static record PcrKeyDto(long workerId, PointChangeType changeType, long changeSourceId, Instant time) {
-	}
+	public static record PcrKeyDto(long workerId, PointChangeType changeType, long changeSourceId, Instant time) {}
 }

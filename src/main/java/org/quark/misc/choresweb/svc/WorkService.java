@@ -9,10 +9,12 @@ import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Set;
 import java.util.function.Predicate;
+import java.util.stream.Stream;
 
 import org.apache.commons.lang3.StringUtils;
 import org.quark.misc.choresweb.api.ApiAssignment;
-import org.quark.misc.choresweb.api.ChoresApplicationEvent;
+import org.quark.misc.choresweb.api.ApiMembership;
+import org.quark.misc.choresweb.api.ApiOrg;
 import org.quark.misc.choresweb.entities.Assignment;
 import org.quark.misc.choresweb.entities.Job;
 import org.quark.misc.choresweb.entities.Membership;
@@ -23,11 +25,14 @@ import org.quark.misc.choresweb.repos.JobRepo;
 import org.quark.misc.choresweb.repos.MembershipRepo;
 import org.quark.misc.choresweb.repos.PointChangeRecordRepo;
 import org.quark.misc.choresweb.repos.UserRepo;
-import org.springframework.context.ApplicationEventPublisher;
+import org.quark.misc.choresweb.sync.EntityMutationNotificationService;
+import org.quark.misc.choresweb.sync.SyncDataSource;
+import org.quark.misc.choresweb.sync.SyncService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import jakarta.persistence.EntityNotFoundException;
+import tools.jackson.databind.ObjectMapper;
 
 @Service
 public class WorkService {
@@ -36,20 +41,58 @@ public class WorkService {
 	private final PointChangeRecordRepo thePointChangeRepo;
 	private final UserRepo theUserRepo;
 	private final UserService theUserService;
+	private final OrganizationService theOrgService;
 	private final JobService theJobService;
 	private final MembershipRepo theMembershipRepo;
-	private final ApplicationEventPublisher theEventPublisher;
+	private final EntityMutationNotificationService theNotificationSvc;
 
 	WorkService(JobRepo jobRepo, AssignmentRepo assnRepo, PointChangeRecordRepo pointChangeRepo, UserRepo userRepo, UserService userService,
-		JobService jobService, MembershipRepo membershipRepo, ApplicationEventPublisher eventPublisher) {
+		OrganizationService orgService, JobService jobService, MembershipRepo membershipRepo,
+		EntityMutationNotificationService notificationSvc, SyncService<User> syncService, ObjectMapper objectMapper) {
 		theJobRepo = jobRepo;
 		theAssnRepo = assnRepo;
 		thePointChangeRepo = pointChangeRepo;
 		theUserRepo = userRepo;
 		theUserService = userService;
+		theOrgService = orgService;
 		theJobService = jobService;
 		theMembershipRepo = membershipRepo;
-		theEventPublisher = eventPublisher;
+		theNotificationSvc = notificationSvc;
+
+		theNotificationSvc.installSerializer("assignment", ApiAssignment.class,
+			new EntityMutationNotificationService.ReflectiveSerializer<>(ApiAssignment.class, objectMapper));
+		syncService.installDataSource(new SyncDataSource.SingleFieldValidationDataSource<User, ApiAssignment, Long>("assignment",
+			ApiAssignment.class, objectMapper, "organization") {
+			@Override
+			protected String isAuthorized(User user, Long authFieldValue) {
+				Membership me = theOrgService.getMembership(user, authFieldValue);
+				if (me == null)
+					return "No such organization with ID " + authFieldValue + " or you are not a member of it";
+				return null;
+			}
+
+			@Override
+			protected ValidationMaintainer<User> maintainValidation(User user, Long authFieldValue) {
+				long userId = user.getId(); // Release the user object to garbage collection
+				long orgId = authFieldValue.longValue();
+				return event -> {
+					if (!event.isPresent() && event.getEntity() instanceof ApiMembership membership) {
+						if (membership.member().id() == userId && membership.organization().id() == orgId) {
+							// The user's membership in the organization has been revoked
+							return ValidationChange.RevokeSubscription;
+						}
+					} else if (!event.isPresent() && event.getEntity() instanceof ApiOrg && ((ApiOrg) event.getEntity()).id() == orgId) {
+						return ValidationChange.RevokeSubscription;
+					}
+					return ValidationChange.Ignore;// Still valid
+				};
+			}
+
+			@Override
+			protected Stream<ApiAssignment> getEntities(Long authFieldValue) {
+				return theAssnRepo.getByOrganizationId(authFieldValue).stream().map(ApiAssignment::of);
+			}
+		});
 	}
 
 	@Transactional(readOnly = true)
@@ -93,14 +136,12 @@ public class WorkService {
 			if (assn.getCompleted() == 0 && assn.getNotes() == null) {
 				if (!newAssn) {
 					theAssnRepo.delete(assn);
-					theEventPublisher.publishEvent(
-						ChoresApplicationEvent.dataChange(this, me.getOrganization().getId(), "assignment", assn.getId(), false));
+					theNotificationSvc.publishMutation("assignment", false, ApiAssignment.of(assn));
 				}
 				return null;
 			}
 			theAssnRepo.save(assn);
-			theEventPublisher
-				.publishEvent(ChoresApplicationEvent.dataChange(this, me.getOrganization().getId(), "assignment", assn.getId(), true));
+			theNotificationSvc.publishMutation("assignment", true, ApiAssignment.of(assn));
 		}
 		return assn;
 	}
@@ -130,8 +171,7 @@ public class WorkService {
 		if (assn == null)
 			return;
 		theAssnRepo.delete(assn);
-		theEventPublisher
-			.publishEvent(ChoresApplicationEvent.dataChange(this, me.getOrganization().getId(), "assignment", assn.getId(), false));
+		theNotificationSvc.publishMutation("assignment", false, ApiAssignment.of(assn));
 	}
 
 	@Transactional
@@ -157,8 +197,7 @@ public class WorkService {
 			PointChangeRecord record = new PointChangeRecord(assn.getJob(), member, now, assn.getCompleted());
 			record.setNotes(assn.getNotes());
 			records.add(record);
-			theEventPublisher
-				.publishEvent(ChoresApplicationEvent.dataChange(this, me.getOrganization().getId(), "assignment", assn.getId(), false));
+			theNotificationSvc.publishMutation("assignment", false, ApiAssignment.of(assn));
 			if (jobs.add(assn.getJob()))
 				assn.getJob().setLastDone(now);
 		}
@@ -171,8 +210,7 @@ public class WorkService {
 		for (Job job : jobs)
 			theJobService.jobUpdated(job);
 		for (PointChangeRecord record : records)
-			theEventPublisher
-				.publishEvent(ChoresApplicationEvent.dataChange(this, me.getOrganization().getId(), "history", record.getId(), true));
+			theNotificationSvc.publishMutation("history", true, PointChangeRecord.FullPcrDto.of(record));
 	}
 
 	@Transactional
@@ -183,8 +221,7 @@ public class WorkService {
 		if (assignments.isEmpty())
 			return;
 		for (Assignment assn : assignments)
-			theEventPublisher
-				.publishEvent(ChoresApplicationEvent.dataChange(this, me.getOrganization().getId(), "assignment", assn.getId(), false));
+			theNotificationSvc.publishMutation("assignment", false, ApiAssignment.of(assn));
 		theAssnRepo.deleteAll(assignments);
 	}
 
@@ -233,8 +270,7 @@ public class WorkService {
 		job.setLastDone(now);
 		theJobRepo.save(job);
 		theJobService.jobUpdated(job);
-		theEventPublisher
-			.publishEvent(ChoresApplicationEvent.dataChange(this, me.getOrganization().getId(), "history", record.getId(), true));
+		theNotificationSvc.publishMutation("history", true, PointChangeRecord.FullPcrDto.of(record));
 		return record;
 	}
 
@@ -263,12 +299,10 @@ public class WorkService {
 		theMembershipRepo.save(member);
 		theUserService.memberUpdated(member);
 		thePointChangeRepo.delete(record);
-		theEventPublisher
-			.publishEvent(ChoresApplicationEvent.dataChange(this, me.getOrganization().getId(), "history", record.getId(), false));
+		theNotificationSvc.publishMutation("history", false, PointChangeRecord.FullPcrDto.of(record));
 	}
 
 	public void assignmentUpdated(Assignment assn) {
-		theEventPublisher.publishEvent(
-			ChoresApplicationEvent.dataChange(this, assn.getJob().getOrganization().getId(), "assignment", assn.getId(), true));
+		theNotificationSvc.publishMutation("assignment", true, ApiAssignment.of(assn));
 	}
 }

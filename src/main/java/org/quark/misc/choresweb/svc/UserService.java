@@ -7,60 +7,98 @@ import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Set;
 import java.util.function.Consumer;
 
+import org.qommons.QommonsUtils;
 import org.qommons.TimeUtils;
 import org.qommons.io.NativeFileSource;
 import org.quark.misc.choresweb.api.ApiMembership;
-import org.quark.misc.choresweb.api.ChoresApplicationEvent;
+import org.quark.misc.choresweb.api.ApiUser;
 import org.quark.misc.choresweb.entities.Membership;
 import org.quark.misc.choresweb.entities.User;
 import org.quark.misc.choresweb.repos.AssignmentRepo;
 import org.quark.misc.choresweb.repos.MembershipRepo;
 import org.quark.misc.choresweb.repos.PointChangeRecordRepo;
 import org.quark.misc.choresweb.repos.UserRepo;
+import org.quark.misc.choresweb.sync.EntityMutationNotificationService;
+import org.quark.misc.choresweb.sync.SyncDataSource;
+import org.quark.misc.choresweb.sync.SyncService;
 import org.quark.misc.choresweb.util.ChoresWebUtils;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
+import tools.jackson.databind.ObjectMapper;
 
 @Service
 @Slf4j
 public class UserService {
-	@Value("${chores.whitelist}")
-	private String theWhitelistPath;
-	private final Set<String> theWhiteList;
+	@Value("${chores.godList}")
+	private String theGodListPath;
+	private final Set<String> theGodList;
 
 	private final UserRepo theUserRepo;
 	private final MembershipRepo theMembershipRepo;
 	private final AssignmentRepo theAssnRepo;
 	private final PointChangeRecordRepo thePointChangeRepo;
-	private final ApplicationEventPublisher theEventPublisher;
+	private final EntityMutationNotificationService theNotificationSvc;
 
 	public UserService(UserRepo userRepo, MembershipRepo membershipRepo, AssignmentRepo assnRepo, PointChangeRecordRepo pointChangeRepo,
-		ApplicationEventPublisher eventPublisher) {
+		EntityMutationNotificationService notificationSvc, SyncService<User> syncService, ObjectMapper objectMapper) {
 		theUserRepo = userRepo;
 		theMembershipRepo = membershipRepo;
 		theAssnRepo = assnRepo;
 		thePointChangeRepo = pointChangeRepo;
-		theEventPublisher = eventPublisher;
+		theNotificationSvc = notificationSvc;
 
-		theWhiteList = new HashSet<>();
+		theGodList = new HashSet<>();
+
+		theNotificationSvc.installSerializer("user", ApiUser.class,
+			new EntityMutationNotificationService.ReflectiveSerializer<>(ApiUser.class, objectMapper));
+		syncService.installDataSource(new SyncDataSource.AbstractReflectedDataSource<User, ApiUser>("user", ApiUser.class, objectMapper) {
+			@Override
+			public ValidationMaintainer<User> validateSubscription(User user, Map<String, SyncDataFilter<ApiUser>> filters)
+				throws UnsupportedOperationException {
+				// Only Global admins can query users, and they can see everything
+				if (!user.isGlobalAdmin())
+					throw new UnsupportedOperationException("You do not have permission to see user changes");
+				long userId = user.getId();
+				return event -> {
+					if (event.getEntity() instanceof User) {
+						User eventUser = (User) event.getEntity();
+						if (eventUser.getId() == userId) {
+							if (!event.isPresent() || !eventUser.isGlobalAdmin())
+								return ValidationChange.RevokeSubscription;
+						}
+					}
+					return ValidationChange.Ignore;
+				};
+			}
+
+			@Override
+			public List<ApiUser> queryEntities(List<Map<String, SyncDataFilter<ApiUser>>> filters) {
+				return QommonsUtils.mapAndFilter(theUserRepo.findAll(), //
+					ApiUser::of, //
+					entity -> SyncDataSource.passesAny(entity, filters)//
+					);
+			}
+		});
 	}
 
 	@PostConstruct
 	private void init() {
 		// Using the BetterFile API to resolve user-relative paths (~)
 		try (BufferedReader in = new BufferedReader(
-			new InputStreamReader(new NativeFileSource().at(theWhitelistPath).read(), StandardCharsets.UTF_8))) {
-			theWhiteList.add(in.readLine().trim().toLowerCase());
+			new InputStreamReader(new NativeFileSource().at(theGodListPath).read(), StandardCharsets.UTF_8))) {
+			String email = in.readLine().trim().toLowerCase();
+			if (!email.isEmpty())
+				theGodList.add(email);
 		} catch (IOException e) {
 			log.error("Could not load white list--org creation will be impossible", e);
 		}
@@ -86,7 +124,7 @@ public class UserService {
 		String email = getUserEmail(user);
 		if (email == null)
 			return null;
-		return getUserCreateIfAdmin(email);
+		return getUserCreateIfGod(email);
 	}
 
 	public static String getUserEmail(Jwt user) {
@@ -97,10 +135,12 @@ public class UserService {
 	}
 
 	@Transactional
-	public User getUserCreateIfAdmin(String email) {
+	public User getUserCreateIfGod(String email) {
 		User found = theUserRepo.getByEmail(email);
-		if (found == null && canCreateOrgs(email)) {
+		if (found == null && theGodList.contains(email.toLowerCase())) {
 			found = new User(email);
+			found.setGod(true);
+			found.setGlobalAdmin(true);
 			theUserRepo.save(found);
 		}
 		return found;
@@ -116,8 +156,44 @@ public class UserService {
 		return found;
 	}
 
-	public boolean canCreateOrgs(String userEmail) {
-		return theWhiteList.contains(userEmail.toLowerCase());
+	@Transactional
+	public User modifyUser(Jwt me, ModifyUserCommand modification) {
+		String myEmail = getUserEmail(me);
+		User self = getUserCreateIfGod(myEmail);
+		if (self == null)
+			throw new UnsupportedOperationException("You are not registered as a user on this application");
+		boolean isSelf = self.getId() == modification.id();
+		if (!isSelf && !self.isGod())
+			throw new UnsupportedOperationException("You do not have permission to modify a user that is not yourself");
+
+		User user = theUserRepo.findById(modification.id()).orElse(null);
+		if (user == null) {
+			if (self.isGod())
+				throw new NoSuchElementException("No such user with ID " + modification.id());
+			else
+				throw new UnsupportedOperationException("You do not have permission to modify a user that is not yourself");
+		}
+
+		if (!self.isGod() && (modification.god() || modification.globalAdmin())) {
+			throw new UnsupportedOperationException("You do not have permission to change this user's permissions");
+		}
+
+		// Permissions checks done. Now do the modification.
+		if (modification.email() != null)
+			user.setEmail(modification.email());
+		if (modification.god() != null) {
+			user.setGod(modification.god());
+			if (modification.god())
+				user.setGlobalAdmin(true);
+		}
+		if (modification.globalAdmin() != null) {
+			user.setGlobalAdmin(modification.globalAdmin());
+			if (!modification.globalAdmin())
+				user.setGod(false);
+		}
+		theUserRepo.save(user);
+		theNotificationSvc.publishMutation("user", true, ApiUser.of(user));
+		return user;
 	}
 
 	@Transactional(readOnly = true)
@@ -160,9 +236,7 @@ public class UserService {
 		if (configure != null)
 			configure.accept(membership);
 		theMembershipRepo.save(membership);
-		theEventPublisher.publishEvent(ChoresApplicationEvent.securityMutation(this, me.getOrganization().getId(), user.getId(), true));
-		theEventPublisher
-			.publishEvent(ChoresApplicationEvent.dataChange(this, me.getOrganization().getId(), "membership", membership.getId(), true));
+		theNotificationSvc.publishMutation("membership", true, ApiMembership.of(membership, true, true));
 		return membership;
 	}
 
@@ -193,8 +267,7 @@ public class UserService {
 
 		if (changed) {
 			theMembershipRepo.save(member);
-			theEventPublisher.publishEvent(
-				ChoresApplicationEvent.dataChange(this, me.getOrganization().getId(), "membership", member.getId(), true));
+			theNotificationSvc.publishMutation("membership", true, ApiMembership.of(member, true, true));
 		}
 		return member;
 	}
@@ -211,14 +284,10 @@ public class UserService {
 		thePointChangeRepo.deleteForMember(target);
 		theAssnRepo.deleteForMember(target);
 		theMembershipRepo.delete(target);
-		theEventPublisher.publishEvent(
-			ChoresApplicationEvent.dataChange(this, me.getOrganization().getId(), "membership", target.getId(), false));
-		theEventPublisher
-			.publishEvent(ChoresApplicationEvent.securityMutation(this, me.getOrganization().getId(), target.getMember().getId(), false));
+		theNotificationSvc.publishMutation("membership", false, ApiMembership.of(target, false, false));
 	}
 
 	public void memberUpdated(Membership member) {
-		theEventPublisher.publishEvent(
-			ChoresApplicationEvent.dataChange(this, member.getOrganization().getId(), "membership", member.getId(), true));
+		theNotificationSvc.publishMutation("membership", true, ApiMembership.of(member, true, true));
 	}
 }

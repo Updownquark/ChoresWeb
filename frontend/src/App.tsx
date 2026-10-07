@@ -38,11 +38,15 @@ function ChoreChampApp() {
 	const [loading, setLoading] = useState<LoadingStage | null>(null);
 	const orgs=useSyncExternalStore(subscribeToOrgs, getOrgsSnapshot);
 	const [org, _setOrg] = useState<Membership | null>(null);
+	
+	useEffect(()=>{
+		syncService.init();
+	}, []);
 
 	useEffect(()=>{
 		if(org)
 			return;
-		if (!_me?.canCreateOrgs && orgs.length == 1){
+		if (!_me?.globalAdmin && orgs.length == 1){
 			setOrg(orgs[0]);
 		} else {
 			const orgIdStr=sessionStorage.getItem("selectedOrg");
@@ -64,11 +68,11 @@ function ChoreChampApp() {
 		if(org && org.organization){
 			sessionStorage.setItem("selectedOrg", org.organization!.id.toString());
 			document.title=appName+": "+org.organization!.name;
-			jobService.init(org.organization!.id);
-			memberService.init(org.organization!.id);
-			assignmentService.init(org.organization!.id);
-			resourcesService.init(org.organization!.id);
-			syncService.connect(org.organization!.id);
+			const filters={"organization": org.organization!.id};
+			jobService.init(filters);
+			memberService.init(filters);
+			assignmentService.init(filters);
+			resourcesService.init(filters);
 			if(!debug && lifeCycle.getStage()==LifeCycleStage.PreInit)
 				lifeCycle.start();
 		} else{
@@ -105,7 +109,7 @@ function ChoreChampApp() {
 	const fetchOrgs = async () => {
 		setLoading(LoadingStage.Orgs);
 		try {
-			orgsService.init();
+			orgsService.init({member: _me!.id});
 		} catch (error) {
 			console.error("API Error:", error);
 			setMe(null);
@@ -157,7 +161,7 @@ function ChoreChampApp() {
 				<OrganizationUI org={org} api={api} />
 			</Container>
 		);
-	} else if (me.canCreateOrgs) {
+	} else if (me.globalAdmin) {
 		return (
 			<Container sx={{ width: "100%", mt: 4 }}>
 				<Banner title="Select the Organization to View" org={org} exitOrg={exitOrg} />

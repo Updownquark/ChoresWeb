@@ -16,9 +16,9 @@ import lombok.Setter;
 
 @Entity
 @Table(name = "app_user",
-	indexes = { //
-		@Index(name = "users_by_email", columnList = "email", unique = true),//
-	})
+indexes = { //
+	@Index(name = "users_by_email", columnList = "email", unique = true),//
+})
 public class User {
 	@Id
 	@GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -27,7 +27,16 @@ public class User {
 
 	@Column(length = 100, nullable = false)
 	@Getter
+	@Setter
 	private String email;
+
+	@Getter
+	@Setter
+	private boolean god;
+
+	@Getter
+	@Setter
+	private boolean globalAdmin;
 
 	@Column(name = "last_active", columnDefinition = "TIMESTAMP", nullable = true)
 	@DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss")

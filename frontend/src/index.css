@@ -186,8 +186,9 @@ table tbody tr:last-child td:last-child {
 	border-bottom-right-radius: 12px !important;
 }
 
-tr.selected td {
+tr.selected * {
 	background-color: var(--accent-bg) !important;
+	color: var(--text-h) !important;
 	border-bottom: 2px solid var(--accent) !important;
 }
 

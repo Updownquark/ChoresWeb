@@ -1,11 +1,10 @@
 import EntitySetService from "./EntitySetService";
-import { AxiosInstance } from "axios";
 import * as Utils from "../util/Utils";
 import PointResource from "../values/PointResource";
 
 class ResourceService extends EntitySetService<PointResource>{
-	constructor(api: AxiosInstance){
-		super(api, "resource", "/api/resources");
+	constructor(){
+		super("resource");
 	}
 
 	getId(rsrc: PointResource): number{

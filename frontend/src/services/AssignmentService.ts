@@ -1,4 +1,3 @@
-import { AxiosInstance } from "axios";
 import Assignment from "../values/Assignment";
 import EntitySetService from "./EntitySetService";
 
@@ -8,8 +7,8 @@ class AssignmentService extends EntitySetService<Assignment>{
 	private readonly  _assignmentsByUser = new Map<number, Map<number, Assignment>>();
 	private readonly  _assignmentsByJob = new Map<number, Map<number, Assignment>>();
 
-	constructor(api: AxiosInstance){
-		super(api, "assignment", "/api/assignments");
+	constructor(){
+		super("assignment");
 	}
 
 	public getUserAssignments(userId: number): ReadonlyMap<number, Assignment>{

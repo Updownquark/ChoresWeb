@@ -6,22 +6,28 @@ import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
+import java.util.stream.Stream;
 
 import org.qommons.StringUtils;
+import org.quark.misc.choresweb.api.ApiMembership;
+import org.quark.misc.choresweb.api.ApiOrg;
 import org.quark.misc.choresweb.api.ApiPointResource;
 import org.quark.misc.choresweb.api.ApiResourceUsage;
-import org.quark.misc.choresweb.api.ChoresApplicationEvent;
 import org.quark.misc.choresweb.entities.Membership;
 import org.quark.misc.choresweb.entities.Organization;
 import org.quark.misc.choresweb.entities.PointChangeRecord;
 import org.quark.misc.choresweb.entities.PointResource;
+import org.quark.misc.choresweb.entities.User;
 import org.quark.misc.choresweb.repos.PointResourceRepo;
-import org.springframework.context.ApplicationEventPublisher;
+import org.quark.misc.choresweb.sync.EntityMutationNotificationService;
+import org.quark.misc.choresweb.sync.SyncDataSource;
+import org.quark.misc.choresweb.sync.SyncService;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import jakarta.persistence.EntityNotFoundException;
+import tools.jackson.databind.ObjectMapper;
 
 @Service
 public class PointResourceService {
@@ -29,16 +35,51 @@ public class PointResourceService {
 	private final UserService theUserService;
 	private final OrganizationService theOrgService;
 	private final PointHistoryService theHistoryService;
-	private final ApplicationEventPublisher theEventPublisher;
+	private final EntityMutationNotificationService theNotificationSvc;
 
 	public PointResourceService(PointResourceRepo resourceRepo, UserService userService, OrganizationService orgService,
-		PointHistoryService historyService,
-		ApplicationEventPublisher eventPublisher) {
+		PointHistoryService historyService, EntityMutationNotificationService notificationSvc, SyncService<User> syncService,
+		ObjectMapper objectMapper) {
 		theResourceRepo = resourceRepo;
 		theUserService = userService;
 		theOrgService = orgService;
 		theHistoryService = historyService;
-		theEventPublisher = eventPublisher;
+		theNotificationSvc = notificationSvc;
+
+		theNotificationSvc.installSerializer("resource", ApiPointResource.class,
+			new EntityMutationNotificationService.ReflectiveSerializer<>(ApiPointResource.class, objectMapper));
+		syncService.installDataSource(new SyncDataSource.SingleFieldValidationDataSource<User, ApiPointResource, Long>("resource",
+			ApiPointResource.class, objectMapper, "organization") {
+			@Override
+			protected String isAuthorized(User user, Long authFieldValue) {
+				Membership me = theOrgService.getMembership(user, authFieldValue);
+				if (me == null)
+					return "No such organization with ID " + authFieldValue + " or you are not a member of it";
+				return null;
+			}
+
+			@Override
+			protected ValidationMaintainer<User> maintainValidation(User user, Long authFieldValue) {
+				long userId = user.getId(); // Release the user object to garbage collection
+				long orgId = authFieldValue.longValue();
+				return event -> {
+					if (!event.isPresent() && event.getEntity() instanceof ApiMembership membership) {
+						if (membership.member().id() == userId && membership.organization().id() == orgId) {
+							// The user's membership in the organization has been revoked
+							return ValidationChange.RevokeSubscription;
+						}
+					} else if (!event.isPresent() && event.getEntity() instanceof ApiOrg && ((ApiOrg) event.getEntity()).id() == orgId) {
+						return ValidationChange.RevokeSubscription;
+					}
+					return ValidationChange.Ignore;// Still valid
+				};
+			}
+
+			@Override
+			protected Stream<ApiPointResource> getEntities(Long authFieldValue) {
+				return theResourceRepo.getByOrganizationId(authFieldValue).stream().map(ApiPointResource::of);
+			}
+		});
 	}
 
 	@Transactional(readOnly = true)
@@ -81,8 +122,7 @@ public class PointResourceService {
 		if (configure != null)
 			configure.accept(resource);
 		theResourceRepo.save(resource);
-		theEventPublisher
-			.publishEvent(ChoresApplicationEvent.dataChange(this, member.getOrganization().getId(), "resource", resource.getId(), true));
+		theNotificationSvc.publishMutation("resource", true, ApiPointResource.of(resource));
 		return resource;
 	}
 
@@ -100,8 +140,7 @@ public class PointResourceService {
 			throw new NoSuchElementException();
 		if (modify.test(resource)) {
 			theResourceRepo.save(resource);
-			theEventPublisher.publishEvent(
-				ChoresApplicationEvent.dataChange(this, member.getOrganization().getId(), "resource", resource.getId(), true));
+			theNotificationSvc.publishMutation("resource", true, ApiPointResource.of(resource));
 		}
 		return resource;
 	}
@@ -119,8 +158,7 @@ public class PointResourceService {
 		if (resource == null || resource.getOrganization().getId() != member.getOrganization().getId())
 			throw new NoSuchElementException();
 		theResourceRepo.delete(resource);
-		theEventPublisher
-			.publishEvent(ChoresApplicationEvent.dataChange(this, member.getOrganization().getId(), "resource", resource.getId(), false));
+		theNotificationSvc.publishMutation("resource", false, ApiPointResource.of(resource));
 	}
 
 	@Transactional
@@ -148,7 +186,6 @@ public class PointResourceService {
 	}
 
 	public void resourceUpdated(PointResource rsrc) {
-		theEventPublisher
-			.publishEvent(ChoresApplicationEvent.dataChange(this, rsrc.getOrganization().getId(), "resource", rsrc.getId(), true));
+		theNotificationSvc.publishMutation("resource", true, ApiPointResource.of(rsrc));
 	}
 }

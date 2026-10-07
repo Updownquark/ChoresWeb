@@ -17,16 +17,16 @@ public record ApiMembership(long id, ApiOrg organization, ApiUser member, @JsonI
 	public static ApiMembership of(Membership membership, boolean withOrg, boolean withUser) {
 		return new ApiMembership(membership.getId(), //
 			withOrg ? ApiOrg.of(membership.getOrganization()) : null, //
-			withUser ? ApiUser.of(membership.getMember(), false) : null, //
-			membership.getName(), membership.getLastActive(), membership.isManager(), membership.isWorker(), membership.getLevel(),
-			membership.getPoints(), splitLabels(membership.getLabels()), false);
+				withUser ? ApiUser.of(membership.getMember()) : null, //
+					membership.getName(), membership.getLastActive(), membership.isManager(), membership.isWorker(), membership.getLevel(),
+					membership.getPoints(), splitLabels(membership.getLabels()), false);
 	}
 
 	public static ApiMembership deleted(Membership membership, boolean withOrg, boolean withUser) {
 		return new ApiMembership(membership.getId(), //
 			withOrg ? ApiOrg.of(membership.getOrganization()) : null, //
-			withUser ? ApiUser.of(membership.getMember(), false) : null, //
-			null, null, false, false, 0, 0, null, true);
+				withUser ? ApiUser.of(membership.getMember()) : null, //
+					null, null, false, false, 0, 0, null, true);
 	}
 
 	public static Set<String> splitLabels(String labels) {

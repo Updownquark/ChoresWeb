@@ -18,8 +18,8 @@ import org.springframework.data.repository.query.Param;
 
 public interface PointChangeRecordRepo extends JpaRepository<PointChangeRecord, Long> {
 	static final String SELECT_DTO = "SELECT new org.quark.misc.choresweb.entities.PointChangeRecord$FullPcrDto("//
-		+ "pcr.id, pcr.worker.id, pcr.changeType, pcr.changeSourceId, pcr.time, pcr.changeSourceName, pcr.beforePoints, pcr.pointChange,"//
-		+ " pcr.quantity, pcr.valueOrRate, pcr.notes) FROM PointChangeRecord pcr";
+		+ "pcr.id, pcr.worker.id, pcr.organization.id, pcr.changeType, pcr.changeSourceId, pcr.time, pcr.changeSourceName,"
+		+ " pcr.beforePoints, pcr.pointChange, pcr.quantity, pcr.valueOrRate, pcr.notes) FROM PointChangeRecord pcr";
 
 	@Query("SELECT new org.quark.misc.choresweb.entities.PointChangeRecord$PcrKeyDto("//
 		+ "pcr.worker.id, pcr.changeType, pcr.changeSourceId, pcr.time)"//

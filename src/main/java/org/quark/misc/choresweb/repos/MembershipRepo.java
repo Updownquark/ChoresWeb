@@ -20,6 +20,12 @@ public interface MembershipRepo extends JpaRepository<Membership, Long> {
 	@Query("FROM Membership WHERE member.id=:userId AND organization.id=:orgId")
 	Membership getMembership(@Param("userId") long userId, @Param("orgId") long orgId);
 
+	Membership getByMemberAndOrganizationId(User member, long orgId);
+
+	List<Membership> getByOrganizationId(long orgId);
+
+	List<Membership> getByMemberId(long userId);
+
 	@Modifying
 	void deleteByOrganization(Organization organization);
 }

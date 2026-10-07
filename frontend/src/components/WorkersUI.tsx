@@ -252,8 +252,10 @@ const JobsUI: React.FC<ChoresTabParams> = ({api, org, visible})=>{
 					value={newWorkerEmail}
 					onChange={e=>setNewWorkerEmail(e.target.value)}
 					onKeyDown={e=>{
-						if(e.key=="Enter" && !addWorkerEmailValid)
+						if(e.key=="Enter" && !addWorkerEmailValid){
+							e.preventDefault(); //Prevents side-effects and allows the dialog to close
 							doAddWorker(newWorkerEmail);
+						}
 					}}
 					label="Enter worker email address" />
 				<Box sx={{width: "100%", display: "flex", flexDirection: "row", justifyContent: "center"}}>

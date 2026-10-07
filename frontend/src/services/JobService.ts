@@ -1,13 +1,12 @@
 import EntitySetService from "./EntitySetService";
-import { AxiosInstance } from "axios";
 import Job from "../values/Job";
 import * as Utils from "../util/Utils";
 
 class JobService extends EntitySetService<Job>{
 	private _activeJobs: readonly Job [] = [];
 
-	constructor(api: AxiosInstance){
-		super(api, "job", "/api/jobs");
+	constructor(){
+		super("job");
 		this.onChange(()=>{
 			this._activeJobs=this.getAll().filter(job=>job.active);
 		});

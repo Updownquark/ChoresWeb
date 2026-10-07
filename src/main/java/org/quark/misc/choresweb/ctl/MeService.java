@@ -23,10 +23,10 @@ public class MeService {
 		String email = user.getClaimAsString("email");
 		if (email == null)
 			email = user.getSubject();
-		User dbUser = theUserSvc.getUserCreateIfAdmin(email);
+		User dbUser = theUserSvc.getUserCreateIfGod(email);
 		if (dbUser != null)
-			return ApiUser.of(dbUser, theUserSvc.canCreateOrgs(email));
+			return ApiUser.of(dbUser);
 		else
-			return new ApiUser(-1, email, false);
+			return new ApiUser(-1, email, false, false);
 	}
 }

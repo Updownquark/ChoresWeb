@@ -16,6 +16,8 @@ public interface AssignmentRepo extends JpaRepository<Assignment, Long> {
 	@Query("FROM Assignment WHERE organization=:org")
 	List<Assignment> getAssignments(@Param("org") Organization org);
 
+	List<Assignment> getByOrganizationId(long orgId);
+
 	@Modifying
 	default void deleteForMember(@Param("member") Membership member) {
 		deleteByOrganizationAndWorker(member.getOrganization(), member.getMember());

@@ -1,11 +1,10 @@
 import EntitySetService from "./EntitySetService";
 import * as Utils from "../util/Utils";
 import Membership from "../values/Membership";
-import { AxiosInstance } from "axios";
 
 export default class OrganizationService extends EntitySetService<Membership>{
-	constructor(api: AxiosInstance){
-		super(api, "organization", "/api/orgs");
+	constructor(){
+		super("membership");
 	}
 	getId(org: Membership){
 		return org.organization!.id;

@@ -1,4 +1,3 @@
-import { AxiosInstance } from "axios";
 import Membership from "../values/Membership";
 import EntitySetService from "./EntitySetService";
 import * as Utils from "../util/Utils";
@@ -7,8 +6,8 @@ class MemberService extends EntitySetService<Membership>{
 	private _workers: readonly Membership []=[];
 	private readonly _membersByUserId= new Map<number, Membership>();
 
-	constructor(api: AxiosInstance){
-		super(api, "membership", "/api/members");
+	constructor(){
+		super("membership");
 		this.onChange(()=>{
 			this._workers=this.getAll().filter(m=>m.worker);
 		});

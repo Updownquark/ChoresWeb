@@ -1,91 +1,141 @@
-import { AxiosInstance } from "axios";
 import * as Utils from "../util/Utils";
 import { syncService } from "./services";
 
 export interface EntityChangeEvent<E>{
-	added?: E;
-	removed?: E;
-	changed?: E;
+	added: readonly E [];
+	removed: readonly E [];
+	changed: readonly E [];
 }
 
-export type EntityChangeListener<E>=(events: readonly EntityChangeEvent<E>[])=>void;
+export type EntityChangeListener<E>=(events: EntityChangeEvent<E>)=>void;
 
 abstract class EntitySetService<E>{
-	private readonly _api: AxiosInstance;
 	private readonly _tableName: string;
-	private readonly _apiPath: string;
 	private readonly _entities: E[]=[];
 	private readonly _entitiesById=new Map<string | number, E>();
 	private _immutableEntities: readonly E[]=[];
 	private _changeListener: (()=>void) | null = null;
 	private readonly _listeners: EntityChangeListener<E> [] = [];
 
-	constructor(api: AxiosInstance, tableName: string, apiPath: string){
-		this._api=api;
+	constructor(tableName: string){
 		this._tableName=tableName;
-		this._apiPath=apiPath;
 	}
 
-	public async init(orgId?: number){
+	public async init(filters: object){
 		this.disconnect();
 
-		let byOrgPath=this._apiPath;
-		if(orgId)
-			byOrgPath+="/by-org/"+orgId;
-		const entities=(await this._api.get<E[]>(byOrgPath)).data;
-		entities.sort((e1, e2)=>this.compare(e1, e2));
-		let i=0;
-		const initialAdds:EntityChangeEvent<E>[] =[];
-		for(const entity of entities){
-			this.added(i++, entity);
-			initialAdds.push({added: entity});
-		}
-		this._immutableEntities=[...entities];
-		if(initialAdds.length)
-			this.fireListeners(initialAdds);
+		this._changeListener = syncService.subscribe<E>(this._tableName, filters, (event) => {
+			switch (event.type) {
+				case "reset":
+					this.handleReset(event.entities);
+					break;
 
-		this._changeListener=syncService.subscribe(this._tableName, event=>{
-			console.log(this._tableName, event.exists ? "add/update" : "delete", event.entityId);
-			if(event.exists)
-				this.addOrUpdate(event.entityId);
-			else{
-				const entity=this._entitiesById.get(event.entityId);
-				if(entity){
-					const index=Utils.binarySearch(this._entities, e=>this.compare(entity, e));
-					this.deleted(index, entity)
-					this._immutableEntities=[...this._entities];
-					this.fireListeners([{removed: entity}]);
-				}
+				case "addOrUpdate":
+					this.handleAddOrUpdate(event.entity);
+					break;
+
+				case "remove":
+					this.handleRemove(event.entity);
+					break;
+
+				case "subscriptionRevoked":
+					console.warn(`Local cache invalidated for ${this._tableName}. Subscription revoked by server security rules.`);
+					this.clear();
+					break;
+
+				default:
+					break;
 			}
 		});
 	}
 
-	private async addOrUpdate(id: number){
-		const entity=(await this._api.get<E>(this._apiPath+"/"+id)).data;
+	private handleAddOrUpdate(entity: E){
+		const id=this.getId(entity);
 		const prev=this._entitiesById.get(id);
 		if(prev){
-			const index=Utils.binarySearch(this._entities, e=>this.compare(prev, e));
-			if(entity){
-				console.log("Updating "+this._tableName, entity);
-				this.updated(index, entity);
-				this._immutableEntities=[...this._entities];
-				this.fireListeners([{changed: entity}])
-			} else{
-				this.deleted(index, prev);
-				this._immutableEntities=[...this._entities];
-				this.fireListeners([{removed: prev}])
-			}
-		} else if(entity){
-			let index=Utils.binarySearch(this._entities, e=>this.compare(entity, e));
-			if(index<0)
-				index=-index-1;
-			else{
-				while(index<this._entities.length && this.compare(entity, this._entities[index])==0)
-					index++;
-			}
+			this.updateEntity(prev, entity);
+			this._immutableEntities=[...this._entities];
+			this.fireListeners({added: [], removed: [], changed: [entity]})
+		} else{
+			let index=this.indexOf(entity);
+			index=-index-1; // The entity should not exist in the list yet
 			this.added(index, entity);
 			this._immutableEntities=[...this._entities];
-			this.fireListeners([{added: entity}]);
+			this.fireListeners({added: [entity], removed: [], changed: []});
+		}
+	}
+
+	private updateEntity(prev: E, entity: E){
+		const oldIndex=this.indexOf(prev);
+		if(this.compare(prev, entity)==0)
+			this.updated(oldIndex, entity);
+		else{
+			this.deleted(oldIndex, prev);
+			let newIndex=this.indexOf(entity);
+			newIndex=-newIndex-1;
+			this.added(newIndex, entity);
+		}
+	}
+
+	private handleRemove(entity: E){
+		const id=this.getId(entity);
+		const prev=this._entitiesById.get(id);
+		if(prev){
+			const index=this.indexOf(prev);
+			this.deleted(index, prev);
+			this._immutableEntities=[...this._entities];
+			this.fireListeners({added: [], removed: [prev], changed: []})
+		}
+	}
+
+	private indexOf(entity: E){
+		return Utils.binarySearch(this._entities, e=>this.compareWithId(entity, e));
+	}
+
+	private compareWithId(e1: E, e2: E){
+		// First, follow the custom sorting
+		let comp=this.compare(e1, e2);
+		if(comp!==0)
+			return comp;
+		const id1=this.getId(e1);
+		const id2=this.getId(e2);
+		if (typeof id1 === "number") {
+			return (id1 as number) - (id2 as number);
+		} else {
+			return (id1 as string).localeCompare(id2 as string);
+		}
+		return comp;
+	}
+
+	private handleReset(entities: E []){
+		const purged=new Set<string | number>(this._entitiesById.keys());
+		const added: E [] = [];
+		const removed: E [] = [];
+		const changed: E [] = [];
+		for(const entity of entities){
+			const id=this.getId(entity);
+			const prev=this._entitiesById.get(id);
+			if(prev){
+				purged.delete(id);
+				this.updateEntity(prev, entity);
+				changed.push(entity);
+			} else {
+				let index=this.indexOf(entity);
+				index=-index-1;
+				this.added(index, entity);
+				added.push(entity);
+			}
+		}
+		for(const id of purged){
+			const entity=this._entitiesById.get(id)!;
+			let index=this.indexOf(entity);
+			this.deleted(index, entity);
+			removed.push(entity);
+		}
+
+		if(added.length || removed.length || changed.length){
+			this._immutableEntities=[...this._entities];
+			this.fireListeners({added: added, removed: removed, changed: changed});
 		}
 	}
 
@@ -118,8 +168,7 @@ abstract class EntitySetService<E>{
 		this._entities.splice(0, this._entities.length);
 		this._entitiesById.clear();
 		this._immutableEntities=[];
-		for(const entity of entities)
-			this.fireListeners([{removed: entity}]);
+		this.fireListeners({added: [], removed: entities, changed: []});
 	}
 
 	abstract getId(entity: E): string | number;
@@ -143,9 +192,9 @@ abstract class EntitySetService<E>{
 		};
 	}
 
-	private fireListeners(events: readonly EntityChangeEvent<E>[]) {
+	private fireListeners(event: EntityChangeEvent<E>) {
 		for(const listener of this._listeners)
-			listener(events);
+			listener(event);
 	}
 }
 

@@ -13,6 +13,8 @@ public interface PointResourceRepo extends JpaRepository<PointResource, Long> {
 	@Query("FROM PointResource res WHERE res.organization=:org")
 	public List<PointResource> getOrgResources(@Param("org") Organization org);
 
+	public List<PointResource> getByOrganizationId(long orgId);
+
 	@Query("SELECT COUNT(*) FROM PointResource org WHERE org.name=:name")
 	int getByName(@Param("name") String name);
 

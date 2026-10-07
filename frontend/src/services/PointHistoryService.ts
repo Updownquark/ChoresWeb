@@ -5,9 +5,14 @@ import { syncService } from "./services";
 
 class PointHistoryService{
 	private readonly _api: AxiosInstance;
+	private _orgId: number | null = null;
 
 	constructor(api: AxiosInstance){
 		this._api=api;
+	}
+
+	public setOrg(orgId: number){
+		this._orgId=orgId;
 	}
 
 	public async getHistoryCount(org: Membership, userId: number | undefined, jobId: number | undefined, resourceId: number | undefined): Promise<number>{
@@ -44,7 +49,7 @@ class PointHistoryService{
 	}
 
 	public onChange(listener: ()=>void): (()=>void) {
-		return syncService.subscribe("history", listener);
+		return syncService.subscribe("history", {organization: this._orgId}, listener);
 	}
 }
 

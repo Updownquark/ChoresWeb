@@ -196,6 +196,7 @@ const ResourcesUI: React.FC<ChoresTabParams> = ({api, org, visible})=>{
 									value={rsrc.unit}
 									onSave={newUnit=>setResourceUnit(rsrc, newUnit)}
 									parser={s=>s?.length ? s : null}
+									renderer={s=> s ? s : ""}
 									validator={newUnit=>{
 										if(newUnit && newUnit.length>16)
 											return "Name cannot exceed 16 characters";

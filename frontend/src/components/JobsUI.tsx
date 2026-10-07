@@ -205,12 +205,15 @@ const JobsUI: React.FC<ChoresTabParams> = ({api, org, visible})=>{
 						const editing=job.id==editJob?.id;
 						const nameEditable=org.manager;
 						const cellStyle= {backgroundColor: editing ? "lightblue" : ""};
-						return <TableRow key={job.id} onClick={e=>{
-							if(e.ctrlKey && editJob?.id==job.id)
-								setEditJob(null);
-							else
-								setEditJob(job);
-						}}>
+						return <TableRow
+							key={job.id}
+							className={editing ? "selected" : null}
+							onClick={e=>{
+								if(e.ctrlKey && editJob?.id==job.id)
+									setEditJob(null);
+								else
+									setEditJob(job);
+							}}>
 							{debug ? <TableCell>{job.id}</TableCell> : null}
 							{nameEditable ? <EditableTableCell
 								sx={cellStyle}

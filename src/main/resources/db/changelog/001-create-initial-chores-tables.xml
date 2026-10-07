@@ -13,6 +13,12 @@
 			<column name="email" type="VARCHAR(100)">
 				<constraints nullable="false" unique="true" />
 			</column>
+			<column name="god" type="BOOLEAN">
+				<constraints nullable="false"/>
+			</column>
+			<column name="global_admin" type="BOOLEAN">
+				<constraints nullable="false"/>
+			</column>
 			<column name="last_active" type="TIMESTAMP" />
 		</createTable>
 		<createIndex indexName="users_by_email" tableName="app_user" unique="true">

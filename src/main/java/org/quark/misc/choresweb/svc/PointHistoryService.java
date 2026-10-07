@@ -6,14 +6,19 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Stream;
 
-import org.quark.misc.choresweb.api.ChoresApplicationEvent;
+import org.quark.misc.choresweb.api.ApiMembership;
+import org.quark.misc.choresweb.api.ApiOrg;
 import org.quark.misc.choresweb.entities.Membership;
 import org.quark.misc.choresweb.entities.PointChangeRecord;
 import org.quark.misc.choresweb.entities.PointChangeRecord.PointChangeType;
+import org.quark.misc.choresweb.entities.User;
 import org.quark.misc.choresweb.repos.MembershipRepo;
 import org.quark.misc.choresweb.repos.PointChangeRecordRepo;
-import org.springframework.context.ApplicationEventPublisher;
+import org.quark.misc.choresweb.sync.EntityMutationNotificationService;
+import org.quark.misc.choresweb.sync.SyncDataSource;
+import org.quark.misc.choresweb.sync.SyncService;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Slice;
@@ -22,22 +27,61 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import jakarta.persistence.EntityManager;
+import tools.jackson.databind.ObjectMapper;
 
 @Service
 public class PointHistoryService {
 	private final MembershipRepo theMembershipRepo;
 	private final UserService theUserSvc;
+	private final OrganizationService theOrgService;
 	private final PointChangeRecordRepo theHistoryRepo;
 	private final EntityManager theEntityManager;
-	private final ApplicationEventPublisher theEventPublisher;
+	private final EntityMutationNotificationService theNotificationSvc;
 
-	public PointHistoryService(MembershipRepo membershipRepo, UserService userSvc, PointChangeRecordRepo historyRepo,
-		EntityManager entityManager, ApplicationEventPublisher eventPublisher) {
+	public PointHistoryService(MembershipRepo membershipRepo, UserService userSvc, OrganizationService orgService,
+		PointChangeRecordRepo historyRepo, EntityManager entityManager, EntityMutationNotificationService notificationSvc,
+		SyncService<User> syncService, ObjectMapper objectMapper) {
 		theMembershipRepo = membershipRepo;
 		theUserSvc = userSvc;
+		theOrgService = orgService;
 		theHistoryRepo = historyRepo;
 		theEntityManager = entityManager;
-		theEventPublisher = eventPublisher;
+		theNotificationSvc = notificationSvc;
+
+		theNotificationSvc.installSerializer("history", PointChangeRecord.FullPcrDto.class,
+			new EntityMutationNotificationService.ReflectiveSerializer<>(PointChangeRecord.FullPcrDto.class, objectMapper));
+		syncService.installDataSource(new SyncDataSource.SingleFieldValidationDataSource<User, PointChangeRecord.FullPcrDto, Long>(
+			"history", PointChangeRecord.FullPcrDto.class, objectMapper, "organization") {
+			@Override
+			protected String isAuthorized(User user, Long authFieldValue) {
+				Membership me = theOrgService.getMembership(user, authFieldValue);
+				if (me == null)
+					return "No such organization with ID " + authFieldValue + " or you are not a member of it";
+				return null;
+			}
+
+			@Override
+			protected ValidationMaintainer<User> maintainValidation(User user, Long authFieldValue) {
+				long userId = user.getId(); // Release the user object to garbage collection
+				long orgId = authFieldValue.longValue();
+				return event -> {
+					if (!event.isPresent() && event.getEntity() instanceof ApiMembership membership) {
+						if (membership.member().id() == userId && membership.organization().id() == orgId) {
+							// The user's membership in the organization has been revoked
+							return ValidationChange.RevokeSubscription;
+						}
+					} else if (!event.isPresent() && event.getEntity() instanceof ApiOrg && ((ApiOrg) event.getEntity()).id() == orgId) {
+						return ValidationChange.RevokeSubscription;
+					}
+					return ValidationChange.Ignore;// Still valid
+				};
+			}
+
+			@Override
+			protected Stream<PointChangeRecord.FullPcrDto> getEntities(Long authFieldValue) {
+				return Stream.empty(); // This feature is not supported, only changes
+			}
+		});
 	}
 
 	@Transactional(readOnly = true)
@@ -96,9 +140,7 @@ public class PointHistoryService {
 
 	private synchronized void publishChanges(Iterable<PointChangeRecord> changes, boolean reverted) {
 		for (PointChangeRecord change : changes) {
-			theEventPublisher
-				.publishEvent(
-					ChoresApplicationEvent.dataChange(this, change.getOrganization().getId(), "history", change.getId(), !reverted));
+			theNotificationSvc.publishMutation("history", !reverted, PointChangeRecord.FullPcrDto.of(change));
 			if (!reverted)
 				theEntityManager.detach(change);
 		}
