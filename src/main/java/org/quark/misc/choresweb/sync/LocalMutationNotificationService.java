@@ -29,16 +29,12 @@ public class LocalMutationNotificationService extends EntityMutationNotification
 	}
 
 	@Override
-	protected Mono<MessageId> publishGlobalMutation(String entityType, boolean present, String entityJson) {
+	protected synchronized Mono<MessageId> publishGlobalMutation(String entityType, boolean present, String entityJson) {
 		MessageId messageId = MessageId.generate();
 		EntityMutationEvent event = new EntityMutationEvent(messageId, entityType, present, entityJson);
-		cacheEvent(event);
+		theEventCache.add(event);
 		publishLocalMutation(event);
 		return Mono.just(messageId);
-	}
-
-	private synchronized void cacheEvent(EntityMutationEvent event) {
-		theEventCache.add(event);
 	}
 
 	@Override

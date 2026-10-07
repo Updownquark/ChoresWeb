@@ -88,6 +88,11 @@ public class SyncService<U> {
 		public String toClientJson() {
 			return theEventJson;
 		}
+
+		@Override
+		public String toString() {
+			return theEventJson;
+		}
 	}
 
 	public static class SubscriptionChangeEvent<U, T> implements SyncEvent<U, T> {
@@ -109,6 +114,11 @@ public class SyncService<U> {
 		@Override
 		public SyncDataSource<U, T> getSource() {
 			return source;
+		}
+
+		@Override
+		public String toString() {
+			return "subChange: " + streamId.substring(0, 8) + "-" + unsubscribe + "+" + subscribe;
 		}
 	}
 
@@ -135,6 +145,7 @@ public class SyncService<U> {
 		.filter(Objects::nonNull)//
 		// .doOnNext(theLiveSink::tryEmitNext)//
 		.doOnNext(event -> {
+			System.out.println("Received data mod " + event);
 			// Enforces a non-blocking busy loop back-off to guarantee thread emission safety
 			theLiveSink.emitNext(event, Sinks.EmitFailureHandler.busyLooping(Duration.ofSeconds(2)));
 		})//
@@ -376,10 +387,14 @@ public class SyncService<U> {
 				.filter(Objects::nonNull)//
 				.filter(event -> {
 					if (event instanceof SyncDataEvent) {
+						System.out.println(streamId.substring(0, 8) + " Received data mod " + event);
 						// Ignore duplicate events due to overlap between catchup and events that are currently live-firing.
 						MessageId eventId = ((SyncDataEvent<U, ?>) event).getMessageId();
 						MessageId newLastId = theLastMessageId.accumulateAndGet(eventId, QommonsUtils::max);
-						return newLastId == eventId;
+						boolean pass = newLastId == eventId;
+						if (!pass)
+							System.out.println("Ignoring duplicate data event " + event);
+						return pass;
 					} else if (event instanceof SubscriptionChangeEvent) {
 						SubscriptionChangeEvent<U, ?> subChange = (SubscriptionChangeEvent<U, ?>) event;
 						return streamId.equals(subChange.streamId);
@@ -438,7 +453,7 @@ public class SyncService<U> {
 						first = false;
 					else
 						initialDataJson.append(',');
-					initialDataJson.append(dataSource.serialize(entity, true).toString());
+					initialDataJson.append(dataSource.serialize(entity).toString());
 				}
 			}
 			initialDataJson.append("]}");
@@ -512,7 +527,7 @@ public class SyncService<U> {
 						clientEventJson.with("entities", initialEntities.stream()//
 							.filter(entity -> activeSubs.values().stream()
 								.anyMatch(sub -> ((SyncDataSubscription<U, T>) sub).isIncluded(entity)))//
-							.map(entity -> event.source.serialize(entity, false))//
+							.map(entity -> event.source.serialize(entity))//
 							.toList());
 					}
 				}
@@ -525,6 +540,7 @@ public class SyncService<U> {
 		}
 
 		private <T> Flux<ServerSentEvent<String>> processDataEvent(SyncDataEvent<U, T> event) {
+			System.out.println(streamId.substring(0, 8) + " Processing data mod " + event);
 			List<ServerSentEvent<String>> events = new ArrayList<>(2);
 			boolean[] include = new boolean[1];
 			Map<String, Set<String>> pendingRemovals = new HashMap<>();
@@ -543,7 +559,7 @@ public class SyncService<U> {
 							events.add(ServerSentEvent.<String> builder().id("").data(new StringBuilder("{")//
 								.append("\"type\":\"remove\"")//
 								.append(",\"entityType\":\"").append(entityType)//
-								.append('"').append(",\"entity\":").append(event.getSource().serialize(event.getEntity(), true)) // idOnly
+								.append('"').append(",\"entity\":").append(event.getSource().serialize(event.getEntity())) //
 								.append('}').toString())//
 								.build());
 						}
@@ -621,7 +637,7 @@ public class SyncService<U> {
 						onRevoke.accept(ServerSentEvent.<String> builder().id("").data(new StringBuilder("{")//
 							.append("\"type\":\"remove\"")//
 							.append(",\"entityType\":\"").append(entityType)//
-							.append('"').append(",\"entity\":").append(source.serialize(entity, true)) // idOnly = true
+							.append('"').append(",\"entity\":").append(source.serialize(entity)) // idOnly
 							.append('}').toString())//
 							.build());
 					}
@@ -698,6 +714,11 @@ public class SyncService<U> {
 					return false;
 			}
 			return true;
+		}
+
+		@Override
+		public String toString() {
+			return theDataSource.getEntityTypeName() + ":" + theFilters + " (" + theSubscriptionId + ")";
 		}
 	}
 }

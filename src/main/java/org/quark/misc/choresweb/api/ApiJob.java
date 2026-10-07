@@ -11,15 +11,15 @@ public record ApiJob(long id, long organization, @JsonInclude(JsonInclude.Includ
 	int maxLevel,
 	@JsonInclude(JsonInclude.Include.NON_NULL) Set<String> inclusionLabels, //
 	@JsonInclude(JsonInclude.Include.NON_NULL) Set<String> exclusionLabels, //
-	int priority, boolean active, Instant lastDone, boolean deleted) {
+	int priority, boolean active, Instant lastDone) {
+
+	public ApiJob(long id) {
+		this(id, -1, null, 0, 0, 0, null, null, 0, false, null);
+	}
 
 	public static ApiJob of(Job job) {
 		return new ApiJob(job.getId(), job.getOrganization().getId(), job.getName(), job.getValue(), job.getMinLevel(), job.getMaxLevel(), //
 			ApiMembership.splitLabels(job.getInclusionLabels()), ApiMembership.splitLabels(job.getExclusionLabels()), //
-			job.getPriority(), job.isActive(), job.getLastDone(), false);
-	}
-
-	public static ApiJob deleted(long jobId) {
-		return new ApiJob(jobId, 0, null, 0, 0, 0, null, null, 0, false, null, true);
+			job.getPriority(), job.isActive(), job.getLastDone());
 	}
 }

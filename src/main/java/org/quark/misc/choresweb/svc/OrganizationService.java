@@ -156,9 +156,7 @@ public class OrganizationService {
 				private void addMembers(Map<Long, ApiMembership> members, List<Membership> newMembers) {
 					newMembers.stream()//
 					.filter(membership -> !members.containsKey(membership.getId()))//
-					// Even though the subscriber doesn't care about the organization piece,
-					// other potential subscriptions might, so we need to include it
-					.map(membership -> ApiMembership.of(membership, true, true))//
+					.map(membership -> ApiMembership.of(membership))//
 					.forEach(membership -> members.put(membership.id(), membership));
 				}
 			});
@@ -223,7 +221,7 @@ public class OrganizationService {
 		membership.setLastActive(Instant.now());
 		theMembershipRepo.save(membership);
 		theNotificationSvc.publishMutation("organization", true, ApiOrg.of(org));
-		theNotificationSvc.publishMutation("membership", true, ApiMembership.of(membership, true, true));
+		theNotificationSvc.publishMutation("membership", true, ApiMembership.of(membership));
 		return membership;
 	}
 
@@ -252,6 +250,10 @@ public class OrganizationService {
 		theAssnRepo.deleteByOrganization(member.getOrganization());
 		theJobRepo.deleteByOrganization(member.getOrganization());
 		theResourceRepo.deleteByOrganization(member.getOrganization());
+		// Because we allow a user to query their memberships across organizations,
+		// we have to get all the memberships for the organization being deleted and fire the notification
+		for (Membership m : theMembershipRepo.getMembership(member.getOrganization()))
+			theNotificationSvc.publishMutation("membership", false, ApiMembership.of(m));
 		theMembershipRepo.deleteByOrganization(member.getOrganization());
 		theOrgRepo.delete(member.getOrganization());
 		theNotificationSvc.publishMutation("organization", false, ApiOrg.of(member.getOrganization()));

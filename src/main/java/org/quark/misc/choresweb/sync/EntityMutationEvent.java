@@ -28,4 +28,9 @@ public class EntityMutationEvent {
 	public String getEntityJson() {
 		return theEntityJson;
 	}
+
+	@Override
+	public String toString() {
+		return theEntityTypeName + " " + (isPresent ? "addOrUpdate" : "remove") + " " + theEntityJson;
+	}
 }

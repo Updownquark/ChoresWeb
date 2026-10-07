@@ -12,21 +12,14 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 
 public record ApiMembership(long id, ApiOrg organization, ApiUser member, @JsonInclude(JsonInclude.Include.NON_NULL) String name,
 	@JsonInclude(JsonInclude.Include.NON_NULL) Instant lastActive, boolean manager, boolean worker, int level, long points,
-	@JsonInclude(JsonInclude.Include.NON_NULL) Set<String> labels, boolean deleted) {
+	@JsonInclude(JsonInclude.Include.NON_NULL) Set<String> labels) {
 
-	public static ApiMembership of(Membership membership, boolean withOrg, boolean withUser) {
+	public static ApiMembership of(Membership membership) {
 		return new ApiMembership(membership.getId(), //
-			withOrg ? ApiOrg.of(membership.getOrganization()) : null, //
-				withUser ? ApiUser.of(membership.getMember()) : null, //
-					membership.getName(), membership.getLastActive(), membership.isManager(), membership.isWorker(), membership.getLevel(),
-					membership.getPoints(), splitLabels(membership.getLabels()), false);
-	}
-
-	public static ApiMembership deleted(Membership membership, boolean withOrg, boolean withUser) {
-		return new ApiMembership(membership.getId(), //
-			withOrg ? ApiOrg.of(membership.getOrganization()) : null, //
-				withUser ? ApiUser.of(membership.getMember()) : null, //
-					null, null, false, false, 0, 0, null, true);
+			ApiOrg.of(membership.getOrganization()), //
+			ApiUser.of(membership.getMember()), //
+			membership.getName(), membership.getLastActive(), membership.isManager(), membership.isWorker(), membership.getLevel(),
+			membership.getPoints(), splitLabels(membership.getLabels()));
 	}
 
 	public static Set<String> splitLabels(String labels) {

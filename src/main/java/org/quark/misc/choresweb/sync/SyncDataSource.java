@@ -55,6 +55,11 @@ public interface SyncDataSource<U, T> {
 			F value = theGetter.apply(entity);
 			return Objects.equals(theValue, value);
 		}
+
+		@Override
+		public String toString() {
+			return String.valueOf(theValue);
+		}
 	}
 
 	public static <T> T getConstantQueryBy(Map<String, ? extends SyncDataFilter<?>> filters, String field) {
@@ -86,7 +91,7 @@ public interface SyncDataSource<U, T> {
 
 	Class<T> getEntityType();
 
-	Object serialize(T entity, boolean idOnly);
+	Object serialize(T entity);
 
 	T deserialize(String json) throws ParseException;
 
@@ -119,28 +124,15 @@ public interface SyncDataSource<U, T> {
 		private final Class<T> theEntityType;
 		private final ObjectMapper theObjectMapper;
 		private final Map<String, SyncDataFilterType<T>> theFilterTypes;
-		private final Field theIdField;
 
 		public AbstractReflectedDataSource(String entityTypeName, Class<T> entityType, ObjectMapper objectMapper) {
 			theEntityTypeName = entityTypeName;
 			theEntityType = entityType;
 			theObjectMapper = objectMapper;
 
-			// Discover the identity field
 			Field[] fields = entityType.getDeclaredFields();
-			Field idField = getIdField(fields);
-			if (idField == null)
-				log.warn("No obvious primary key field for entity " + entityTypeName + " (" + entityType.getName()
-				+ "). id-only serialization will produce fully-serialized entity JSON.");
-			if (idField != null)
-				idField.setAccessible(true);
-			theIdField = idField;
-
 			// Discover fields for filtering
 			Map<String, SyncDataFilterType<T>> filterTypes = new LinkedHashMap<>();
-			if (theIdField != null) {
-				filterTypes.put(theIdField.getName(), createFilterType(theIdField, theObjectMapper));
-			}
 			for (Field field : fields) {
 				if (filterTypes.containsKey(field.getName()))
 					continue;
@@ -215,23 +207,10 @@ public interface SyncDataSource<U, T> {
 		}
 
 		@Override
-		public Object serialize(T entity, boolean idOnly) {
-			if (idOnly && theIdField != null) {
-				Object idValue;
-				try {
-					idValue = theIdField.get(entity);
-				} catch (IllegalArgumentException | IllegalAccessException e) {
-					throw new IllegalStateException(theEntityTypeName + " serialization failed", e);
-				}
-				return new StringBuilder("{\"")//
-					.append(theIdField.getName()).append("\":")//
-					.append(theObjectMapper.writeValueAsString(idValue))//
-					.append('}').toString();
-			} else {
-				String jsonStr = theObjectMapper.writeValueAsString(entity);
-				Map<String, Object> map = theObjectMapper.readValue(jsonStr, Map.class);
-				return new JsonObject().withAll(map);
-			}
+		public Object serialize(T entity) {
+			String jsonStr = theObjectMapper.writeValueAsString(entity);
+			Map<String, Object> map = theObjectMapper.readValue(jsonStr, Map.class);
+			return new JsonObject().withAll(map);
 		}
 
 		@Override

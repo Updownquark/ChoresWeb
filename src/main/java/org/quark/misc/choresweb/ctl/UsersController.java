@@ -40,21 +40,21 @@ public class UsersController {
 	@GetMapping("{id}")
 	public ApiMembership getMember(@AuthenticationPrincipal Jwt user, @PathVariable long id) {
 		Membership member = theMembershipSvc.getMembershipById(user, id);
-		return member == null ? null : ApiMembership.of(member, false, true);
+		return member == null ? null : ApiMembership.of(member);
 	}
 
 	@PostMapping("/add")
 	public ApiMembership addMember(@AuthenticationPrincipal Jwt user, @RequestBody AddMember command) {
 		Membership me = theMembershipSvc.getMe(user, command.orgId());
 		Membership member = theUserSvc.addWorker(me, command.userEmail(), null);
-		return ApiMembership.of(member, false, true);
+		return ApiMembership.of(member);
 	}
 
 	@PostMapping("/modify")
 	public ApiMembership modifyMember(@AuthenticationPrincipal Jwt user, @RequestBody ModifyWorkerCommand command) {
 		Membership me = theMembershipSvc.getMe(user, command.orgId());
 		Membership member = theUserSvc.modifyWorker(me, command);
-		return ApiMembership.of(member, false, true);
+		return ApiMembership.of(member);
 	}
 
 	@DeleteMapping

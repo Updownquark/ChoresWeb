@@ -163,7 +163,6 @@ export default class SyncService {
 						break;
 
 					case "subscriptionChanged":
-						console.log(`Subscriptions dynamically altered for Type: ${payload.entityType}`);
 						if (payload.subscriptions && Array.isArray(payload.subscriptions)) {
 							this.pairSubscriptionIds(payload.subscriptions);
 						}

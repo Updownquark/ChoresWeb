@@ -116,7 +116,7 @@ const JobsUI: React.FC<ChoresTabParams> = ({api, org, visible})=>{
 
 	const doDeleteWorker=()=>{
 		setConfirmingDelete(false);
-		api.delete("/api/members/", {
+		api.delete("/api/members", {
 			data: {
 				orgId: org.organization!.id,
 				userId: editWorker!.member!.id,
@@ -257,6 +257,7 @@ const JobsUI: React.FC<ChoresTabParams> = ({api, org, visible})=>{
 							doAddWorker(newWorkerEmail);
 						}
 					}}
+					autoFocus
 					label="Enter worker email address" />
 				<Box sx={{width: "100%", display: "flex", flexDirection: "row", justifyContent: "center"}}>
 					<Tooltip title={addWorkerEmailValid ? addWorkerEmailValid : "Create a new worker"}>

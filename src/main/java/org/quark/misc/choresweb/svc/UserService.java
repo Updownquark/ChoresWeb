@@ -5,6 +5,7 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -209,7 +210,7 @@ public class UserService {
 	@Transactional(readOnly = true)
 	public List<ApiMembership> getApiMembers(Membership me) {
 		return theMembershipRepo.getMembership(me.getOrganization()).stream()//
-			.map(member -> ApiMembership.of(member, true, true))//
+			.map(member -> ApiMembership.of(member))//
 			.toList();
 	}
 
@@ -232,11 +233,12 @@ public class UserService {
 		name = ChoresWebUtils.getNewName(theMembershipRepo.getMembership(me.getOrganization()), 100, name);
 		membership.setName(name);
 		membership.setWorker(true);
-		membership.setLastActive(Instant.now());
+		me.setLastActive(Instant.now());
 		if (configure != null)
 			configure.accept(membership);
-		theMembershipRepo.save(membership);
-		theNotificationSvc.publishMutation("membership", true, ApiMembership.of(membership, true, true));
+		theMembershipRepo.saveAll(Arrays.asList(membership, me));
+		theNotificationSvc.publishMutation("membership", true, ApiMembership.of(me));
+		theNotificationSvc.publishMutation("membership", true, ApiMembership.of(membership));
 		return membership;
 	}
 
@@ -266,8 +268,10 @@ public class UserService {
 		}
 
 		if (changed) {
-			theMembershipRepo.save(member);
-			theNotificationSvc.publishMutation("membership", true, ApiMembership.of(member, true, true));
+			me.setLastActive(Instant.now());
+			theMembershipRepo.saveAll(Arrays.asList(member, me));
+			theNotificationSvc.publishMutation("membership", true, ApiMembership.of(me));
+			theNotificationSvc.publishMutation("membership", true, ApiMembership.of(member));
 		}
 		return member;
 	}
@@ -284,10 +288,13 @@ public class UserService {
 		thePointChangeRepo.deleteForMember(target);
 		theAssnRepo.deleteForMember(target);
 		theMembershipRepo.delete(target);
-		theNotificationSvc.publishMutation("membership", false, ApiMembership.of(target, false, false));
+		me.setLastActive(Instant.now());
+		theMembershipRepo.save(me);
+		theNotificationSvc.publishMutation("membership", true, ApiMembership.of(me));
+		theNotificationSvc.publishMutation("membership", false, ApiMembership.of(target));
 	}
 
 	public void memberUpdated(Membership member) {
-		theNotificationSvc.publishMutation("membership", true, ApiMembership.of(member, true, true));
+		theNotificationSvc.publishMutation("membership", true, ApiMembership.of(member));
 	}
 }

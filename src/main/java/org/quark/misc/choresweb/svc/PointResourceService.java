@@ -104,7 +104,6 @@ public class PointResourceService {
 		}
 		if (resource == null)
 			return null;
-		Membership me = theOrgService.getMe(user, resource.getOrganization().getId());
 		return resource;
 	}
 
@@ -146,19 +145,17 @@ public class PointResourceService {
 	}
 
 	@Transactional
-	public void deleteResource(Membership member, long resourceId) {
-		if (!member.isManager())
+	public void deleteResource(Jwt user, long resourceId) {
+		PointResource rsrc = theResourceRepo.findById(resourceId).orElse(null);
+		if (rsrc == null)
+			throw new NoSuchElementException("No such resource visible");
+		Membership me = theOrgService.getMe(user, rsrc.getOrganization().getId());
+		if (rsrc.getOrganization().getId() != me.getOrganization().getId())
+			throw new NoSuchElementException("No such resource visible");
+		if (!me.isManager())
 			throw new UnsupportedOperationException("You do not have permission to remove resources from this organization");
-		PointResource resource;
-		try {
-			resource = theResourceRepo.getReferenceById(resourceId);
-		} catch (EntityNotFoundException e) {
-			throw new NoSuchElementException();
-		}
-		if (resource == null || resource.getOrganization().getId() != member.getOrganization().getId())
-			throw new NoSuchElementException();
-		theResourceRepo.delete(resource);
-		theNotificationSvc.publishMutation("resource", false, ApiPointResource.of(resource));
+		theResourceRepo.delete(rsrc);
+		theNotificationSvc.publishMutation("resource", false, ApiPointResource.of(rsrc));
 	}
 
 	@Transactional

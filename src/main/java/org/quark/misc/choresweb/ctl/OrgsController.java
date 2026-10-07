@@ -37,27 +37,27 @@ public class OrgsController {
 		if (dbUser == null)
 			return Collections.emptyList();
 		return theOrgSvc.getAvailableOrgs(dbUser).stream()//
-			.map(org -> ApiMembership.of(org, true, false))//
+			.map(org -> ApiMembership.of(org))//
 			.toList();
 	}
 
 	@GetMapping("/{id}")
 	public ApiMembership get(@AuthenticationPrincipal Jwt user, @PathVariable long id) {
 		Membership org = theOrgSvc.getMe(user, id);
-		return ApiMembership.of(org, true, false);
+		return ApiMembership.of(org);
 	}
 
 	@PostMapping("/add")
 	public ApiMembership add(@AuthenticationPrincipal Jwt user) {
 		Membership org = theOrgSvc.addOrganization(UserService.getUserEmail(user));
-		return ApiMembership.of(org, true, false);
+		return ApiMembership.of(org);
 	}
 
 	@PostMapping("set-name")
 	public ApiMembership setName(@AuthenticationPrincipal Jwt user, @RequestBody ModifyOrg org) {
 		Membership found = theOrgSvc.getMe(user, org.id());
 		theOrgSvc.setOrganizationName(found, org.name());
-		return ApiMembership.of(found, true, false);
+		return ApiMembership.of(found);
 	}
 
 	@DeleteMapping("/{id}")

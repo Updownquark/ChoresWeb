@@ -1,10 +1,8 @@
 package org.quark.misc.choresweb.sync;
 
-import java.lang.reflect.Field;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.function.Predicate;
 
 import org.qommons.fn.FunctionUtils;
 import org.springframework.context.ApplicationEvent;
@@ -12,7 +10,6 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
 
-import jakarta.persistence.Id;
 import lombok.extern.slf4j.Slf4j;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -26,52 +23,20 @@ public abstract class EntityMutationNotificationService {
 		 * @param idOnly Whether to serialize only the ID fields of the entity
 		 * @return The JSON-serialized entity
 		 */
-		String serialize(E entity, boolean idOnly); // Only ID is needed for removals
+		String serialize(E entity);
 	}
 
 	@Slf4j
 	public static class ReflectiveSerializer<T> implements EntitySerializer<T> {
 		private final ObjectMapper theObjectMapper;
-		private final Field theIdField;
 
 		public ReflectiveSerializer(Class<T> type, ObjectMapper objectMapper) {
 			theObjectMapper = objectMapper;
-			// Discover the identity field
-			Field[] fields = type.getDeclaredFields();
-			Field idField = findField(fields, f -> f.isAnnotationPresent(Id.class));
-			if (idField == null)
-				idField = findField(fields, f -> f.getName().equals("id"));
-			if (idField == null)
-				log.warn("No obvious primary key field for entity " + type.getName()
-				+ ". id-only serialization will produce fully-serialized entity JSON.");
-			if (idField != null)
-				idField.setAccessible(true);
-			theIdField = idField;
-		}
-
-		private static Field findField(Field[] fields, Predicate<Field> filter) {
-			for (Field f : fields)
-				if (filter.test(f))
-					return f;
-			return null;
 		}
 
 		@Override
-		public String serialize(T entity, boolean idOnly) {
-			if (idOnly && theIdField != null) {
-				Object idValue;
-				try {
-					idValue = theIdField.get(entity);
-				} catch (IllegalArgumentException | IllegalAccessException e) {
-					throw new IllegalStateException("Serialization failed", e);
-				}
-				return new StringBuilder("{\"")//
-					.append(theIdField.getName()).append("\":")//
-					.append(theObjectMapper.writeValueAsString(idValue))//
-					.append('}').toString();
-			} else {
-				return theObjectMapper.writeValueAsString(entity);
-			}
+		public String serialize(T entity) {
+			return theObjectMapper.writeValueAsString(entity);
 		}
 	}
 
@@ -120,7 +85,7 @@ public abstract class EntityMutationNotificationService {
 		else if (!serializer.entityType.isInstance(entity))
 			throw new IllegalArgumentException(
 				"Given entity is not an instance of " + entityTypeName + " (" + serializer.entityType.getName() + ")");
-		String entityJson = serializer.serializer.serialize(entity, !present);
+		String entityJson = serializer.serializer.serialize(entity);
 		InternalDataMutationEvent internalEvent = new InternalDataMutationEvent(this, entityTypeName, present, entityJson);
 		theInternalEventPublisher.publishEvent(internalEvent);
 		return internalEvent.messageId.asMono().flatMap(FunctionUtils.identity());

@@ -12,14 +12,7 @@ import org.quark.misc.choresweb.svc.UserService;
 import org.quark.misc.choresweb.util.ChoresWebUtils;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
-import org.springframework.web.bind.annotation.DeleteMapping;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.PutMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/resources")
@@ -100,13 +93,7 @@ public class PointResourceController {
 
 	@DeleteMapping("/{id}")
 	public void deleteResource(@AuthenticationPrincipal Jwt user, @PathVariable long id) {
-		PointResource rsrc = theResourceService.getById(null, id);
-		if (rsrc == null)
-			return;
-		Membership membership = theMembershipSvc.getMe(user, rsrc.getOrganization().getId());
-		if (!membership.isManager())
-			throw new UnsupportedOperationException("You do not have permission to delete jobs in this organization");
-		theResourceService.deleteResource(membership, id);
+		theResourceService.deleteResource(user, id);
 	}
 
 	@PostMapping("/redeem")

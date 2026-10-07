@@ -63,8 +63,6 @@ const PointHistoryView: React.FC<PointHistoryViewProps>=({org, userId, jobId, re
 		}
 	}, [visible]);
 
-	console.log("History page "+pageNumber+" of "+pageCount);
-
 
 	const setCurrentItems=(data: readonly PointChangeRecord[])=>{
 		history.splice(0, history.length, ...data);
