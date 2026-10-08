@@ -1,4 +1,4 @@
-import { IconButton, Menu } from "@mui/material";
+import { IconButton, Menu, Tooltip } from "@mui/material";
 import React, { useEffect, useState } from "react";
 import SettingsIcon from "@mui/icons-material/Settings";
 
@@ -19,9 +19,11 @@ const SettingsMenu: React.FC<SettingsMenuProps> = ({ children, close }) => {
 
 	return (
 		<>
-			<IconButton sx={{border: "none !important"}} onClick={openSettings}>
-				<SettingsIcon />
-			</IconButton>
+			<Tooltip title="Settings">
+				<IconButton sx={{border: "none !important"}} onClick={openSettings}>
+					<SettingsIcon />
+				</IconButton>
+			</Tooltip>
 			<Menu
 				open={Boolean(settingsAnchor)}
 				anchorEl={settingsAnchor}

@@ -1,244 +1,53 @@
-:root {
-	--bg: #ffffff;
-	--text: #6b6375;
-	--text-h: #08060d;
-	--border: #e5e4e7;
-	--code-bg: #f4f3ec;
-	--accent: #aa3bff;
-	--accent-bg: rgba(170, 59, 255, 0.1);
-	--accent-border: rgba(170, 59, 255, 0.5);
-	--social-bg: rgba(244, 243, 236, 0.5);
-	--shadow:
-		rgba(0, 0, 0, 0.1) 0 10px 15px -3px, rgba(0, 0, 0, 0.05) 0 4px 6px -2px;
-	--sans: system-ui, "Segoe UI", Roboto, sans-serif;
-	--heading: system-ui, "Segoe UI", Roboto, sans-serif;
-	--mono: ui-monospace, Consolas, monospace;
-
-	font: 18px/145% var(--sans);
-	letter-spacing: 0.18px;
-	color-scheme: light dark;
-}
-
-@media (prefers-color-scheme: dark) {
-	:root {
-		--text: #9ca3af;
-		--text-h: #f3f4f6;
-		--bg: #16171d;
-		--border: #aea0aa;
-		--code-bg: #1f2028;
-		--accent: #c084fc;
-		--accent-bg: rgba(192, 132, 252, 0.15);
-		--accent-border: rgba(192, 132, 252, 0.5);
-		--social-bg: rgba(47, 48, 58, 0.5);
-		--shadow:
-			rgba(0, 0, 0, 0.4) 0 10px 15px -3px, rgba(0, 0, 0, 0.25) 0 4px 6px -2px;
-	}
-
-	#social .button-icon {
-		filter: invert(1) brightness(2);
-	}
-
-	tr.selected td,
-	tr.selected th {
-		background-color: rgba(192, 132, 252, 0.25) !important;
-		border-bottom: 2px solid var(--accent) !important;
-	}
-}
-
-/* 🏁 FIXED: Applied theme properties directly to body element */
+/* 1. Global Reset & Material UI Token Matching */
 body {
-	margin: 0;
-	color: var(--text);
-	background-color: var(--bg);
-	font-synthesis: none;
-	text-rendering: optimizeLegibility;
-	-webkit-font-smoothing: antialiased;
-	-moz-osx-font-smoothing: grayscale;
+  margin: 0;
+  font-family: system-ui, "Segoe UI", Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 #root {
-	width: 100%;
-	max-width: 100%;
-	margin: 0 auto;
-	text-align: center;
-	border-inline: 1px solid var(--border);
-	min-height: 100svh;
-	display: flex;
-	flex-direction: column;
-	box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  margin: 0 auto;
+  min-height: 100svh;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
 }
 
-h1,
-h2 {
-	font-family: var(--heading);
-	font-weight: 500;
-	color: var(--text-h);
+/* 2. Highlight Selected Table Rows Dynamically */
+/* This automatically reads your primary accent colors directly from your theme.ts file */
+tr.selected,
+tr.selected td,
+tr.selected th {
+  background-color: var(--mui-palette-action-selected, rgba(192, 132, 252, 0.15)) !important;
+  color: var(--mui-palette-text-primary) !important;
+  border-bottom: 2px solid var(--mui-palette-primary-main) !important;
 }
 
-h1 {
-	font-size: 56px;
-	letter-spacing: -1.68px;
-	margin: 32px 0;
+/* 3. Fix MUI Dropdown Select Option Colors in Dark Mode */
+/* Forces dropdown options to stay readable and adapt when the dark mode data attribute changes */
+[data-mui-color-scheme="dark"] .MuiMenuItem-root,
+[data-mui-color-scheme="dark"] .MuiButtonBase-root.MuiMenuItem-root {
+  color: #f3f4f6 !important; /* Pure off-white text for dark mode lists */
+  background-color: transparent;
 }
 
-h2 {
-	font-size: 24px;
-	line-height: 118%;
-	letter-spacing: -0.24px;
-	margin: 0 0 8px;
+[data-mui-color-scheme="dark"] .MuiMenuItem-root:hover {
+  background-color: rgba(255, 255, 255, 0.08) !important;
 }
 
-p {
-	margin: 0;
-}
-
-table,
-thead,
-tbody,
-tr,
-th,
-td,
-input,
-select,
-button,
-div.MuiSelect-select {
-	background-color: var(--bg);
-	border: 1px solid var(--border) !important;
-}
-
-.MuiTableContainer-root {
-	border: 1px solid var(--border) !important;
-	border-radius: 12px !important; /* 👈 Clean rounding applied here */
-	overflow: hidden !important;     /* 👈 Clips all background color bleed smoothly */
-	background-color: var(--bg);
-}
-
-/* 2. Clear out the outer table shell overrides */
-table {
-	width: 100%;
-	border-collapse: separate !important;
-	border-spacing: 0;
-	background-color: transparent !important;
-}
-
-thead,
-tbody,
-input,
-select,
-button,
-div.MuiSelect-select {
-	border-collapse: separate !important; /* 👈 Required for border-radius to work on tables */
-	border-spacing: 0; /* 👈 Keeps rows perfectly flush without gaps */
-	border-radius: 12px !important; /* 👈 Match this to your MUI theme radius */
-	overflow: hidden !important; /* 👈 Clips the sharp inner cell corners */
-	border: 1px solid var(--border) !important;
-}
-
-button.MuiTab-root{
-	border-radius: 0px !important;
-}
-
-table,
-thead,
-tbody,
-tr {
-	background-color: var(--bg);
-	border: none !important;
-}
-
-th,
-td,
-li {
-	background-color: var(--bg);
-	color: var(--text) !important;
-	border-bottom: 1px solid var(--border); /* 👈 Add inner grid borders horizontally */
-	border-right: 1px solid var(--border); /* 👈 Add inner grid borders vertically */
-}
-
-th:last-child, 
-td:last-child {
-	border-right: none;
-}
-tr:last-child td {
-	border-bottom: none;
-}
-
-table thead tr:first-child th:first-child {
-	border-top-left-radius: 12px !important;
-}
-table thead tr:first-child th:last-child {
-	border-top-right-radius: 12px !important;
-}
-
-/* Fallback: Only round top corners of td cells IF the table has no header at all */
-table:not(:has(thead)) tr:first-child td:first-child {
-	border-top-left-radius: 12px !important;
-}
-table:not(:has(thead)) tr:first-child td:last-child {
-	border-top-right-radius: 12px !important;
-}
-
-/* Force the bottom-left and bottom-right cells to round natively */
-table tbody tr:last-child td:first-child {
-	border-bottom-left-radius: 12px !important;
-}
-table tbody tr:last-child td:last-child {
-	border-bottom-right-radius: 12px !important;
-}
-
-tr.selected * {
-	background-color: var(--accent-bg) !important;
-	color: var(--text-h) !important;
-	border-bottom: 2px solid var(--accent) !important;
-}
-
-h1,
-h2,
-h3,
-h4,
-h5,
-h6 {
-	font-family: var(--heading);
-	font-weight: 500;
-	color: var(--text-h);
-	background-color: transparent !important; /* 👈 Ensures headings don't bring their own background box */
-}
-
-div.section {
-	border: 1px solid var(--border);
-}
-
-button.MuiTab-root.Mui-selected{
-	font-family: Arial, sans-serif !important; /* Otherwise the default font family overrides the font weight */
-	font-weight: 1000 !important;
-	border: 4px solid var(--border) !important;
-}
-
-code,
-.counter {
-	font-family: var(--mono);
-	display: inline-flex;
-	border-radius: 4px;
-	color: var(--text-h);
-}
-
-code {
-	font-size: 15px;
-	line-height: 135%;
-	padding: 4px 8px;
-	background: var(--code-bg);
-}
-
-/* 🏁 FIXED: Cleaned up and moved responsive typography breakpoints outside blocks */
+/* 4. Smooth Responsive Global Typography */
 @media (max-width: 768px) {
-	:root {
-		font-size: 16px;
-	}
-	h1 {
-		font-size: 36px;
-		margin: 20px 0;
-	}
-	h2 {
-		font-size: 20px;
-	}
+  body {
+    font-size: 16px;
+  }
+  h1 {
+    font-size: 36px !important;
+    margin: 20px 0 !important;
+  }
+  h2 {
+    font-size: 20px !important;
+  }
 }

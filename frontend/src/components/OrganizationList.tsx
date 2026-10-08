@@ -13,7 +13,7 @@ interface OrgListParams{
 const OrganizationList: React.FC<OrgListParams>=({orgs, setOrg})=>{
 	const [deleteOrg, setDeleteOrg] = useState<Organization | null>(null);
 
-	return <List>
+	return <List sx={{width: "100%"}}>
 		{orgs.map(org=>{
 			const orgId=org.organization!.id;
 
@@ -32,8 +32,14 @@ const OrganizationList: React.FC<OrgListParams>=({orgs, setOrg})=>{
 			</ListItem>
 		})}
 		<Dialog open={!!deleteOrg}>
-			<DialogTitle title="Delete Organization?" />
-			<Box sx={{display: "flex", flexDirection: "column"}}>
+			<DialogTitle>Delete Organization?</DialogTitle>
+			<Box sx={{
+				display: "flex",
+				flexDirection: "column",
+				paddingLeft: 2,
+				paddingRight: 2,
+				paddingBottom: 1,
+				}}>
 				<Box>Permanently delete '{deleteOrg?.name}'?</Box>
 				<Box>This cannot be undone.</Box>
 				<Box sx={{display: "flex", flexDirection: "row", justifyContent: "space-evenly"}}>

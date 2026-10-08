@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useSyncExternalStore } from "react";
 import ChoresTabParams from "./ChoresTabParams";
 import { assignmentService,  jobService, memberService } from "../services/services";
-import { Box, Button, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow } from "@mui/material";
+import { Box, Button, Dialog, DialogTitle, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Typography } from "@mui/material";
 import { EditableTableCell } from "./util/EditableTableCell";
 
 const AssignmentsUI: React.FC<ChoresTabParams>=({api, org, visible})=>{
@@ -14,9 +14,61 @@ const AssignmentsUI: React.FC<ChoresTabParams>=({api, org, visible})=>{
 
 	// Re-render when assignments change
 	const [, assignmentsChanged] =useState(0);
+	const [isConfirmingSubmit, setConfirmingSubmit] = useState(false);
+	const [isConfirmingClear, setConfirmingClear] = useState(false);
+	
 	useEffect(()=>assignmentService.onChange(()=>assignmentsChanged(prev=>prev+1)), []);
 
-	return <TableContainer component={Paper} sx={{display : visible ? "" : "none"}}>
+	return <>
+	<Dialog open={isConfirmingSubmit}>
+		<DialogTitle sx={{textAlign: "center"}}>Submit Work?</DialogTitle>
+		<Box sx={{
+			display: "flex",
+			flexDirection: "column",
+			alignItems: "stretch",
+			paddingLeft: 2,
+			paddingRight: 2,
+			paddingBottom: 1,
+			}}>
+			<Typography sx={{textAlign: "center"}}>Submit these assignments as work done?</Typography>
+			<Box sx={{
+				display: "flex",
+				flexDirection: "row",
+				justifyContent: "space-evenly",
+				width: "100%"
+				}}>
+				<Button onClick={e=>{
+					e.preventDefault();
+					setConfirmingSubmit(false);
+					api.post("/api/assignments/submit", null, {
+						params: {orgId: org.organization!.id}
+					});
+				}}>OK</Button>
+				<Button onClick={e=>{
+					e.preventDefault();
+					setConfirmingSubmit(false);
+				}}>Cancel</Button>
+			</Box>
+		</Box>
+	</Dialog>
+	<Dialog open={isConfirmingClear}>
+		<DialogTitle>Clear Assignments</DialogTitle>
+		Clear all assignments?
+		<Box sx={{display: "flex", flexDirection: "row", justifyItems: "space-evenly"}}>
+			<Button onClick={e=>{
+				e.preventDefault();
+				setConfirmingClear(false);
+				api.delete("/api/assignments/all", {
+					params: {orgId: org.organization!.id}
+				});
+			}}>OK</Button>
+			<Button onClick={e=>{
+				e.preventDefault();
+				setConfirmingClear(false);
+			}}>Cancel</Button>
+		</Box>
+	</Dialog>
+	<TableContainer component={Paper} sx={{display : visible ? "" : "none"}}>
 		<Table sx={{width:"100%"}} size="small">
 			<TableHead>
 				<TableRow>
@@ -62,20 +114,11 @@ const AssignmentsUI: React.FC<ChoresTabParams>=({api, org, visible})=>{
 			</TableBody>
 		</Table>
 		<Box sx={{display: "flex", flexDirection: "row", alignItems: "center", justifyContent: "space-evenly"}}>
-			<Button onClick={e=>{
-				api.post("/api/assignments/submit", {
-					params: {
-						orgId: org.organization!.id
-					}
-				});
-			}}>Submit</Button>
-			<Button onClick={e=>api.delete("/api/assignments/all", {
-				params: {
-					orgId: org.organization!.id
-				}
-			})}>Clear All</Button>
+			<Button onClick={()=>setConfirmingSubmit(true)}>Submit</Button>
+			<Button onClick={()=>setConfirmingClear(true)}>Clear All</Button>
 		</Box>
-	</TableContainer>;
+	</TableContainer>
+	</>;
 };
 
 export default AssignmentsUI;

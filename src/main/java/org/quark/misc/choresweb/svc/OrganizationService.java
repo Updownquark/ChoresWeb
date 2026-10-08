@@ -240,6 +240,8 @@ public class OrganizationService {
 		member.getOrganization().setName(name);
 		theOrgRepo.save(member.getOrganization());
 		theNotificationSvc.publishMutation("organization", true, ApiOrg.of(member.getOrganization()));
+		for (Membership m : theMembershipRepo.getMembership(member.getOrganization()))
+			theNotificationSvc.publishMutation("membership", true, ApiMembership.of(m));
 	}
 
 	@Transactional

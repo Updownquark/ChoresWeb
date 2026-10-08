@@ -49,7 +49,11 @@ const OrganizationUI: React.FC<OrgUIParams> =({org, api})=>{
 		});
 	}
 
-	return <Box sx={{display: "flex", flexDirection: "column", alignItems: "flex-start"}}>
+	return <Box sx={{
+		width: "100%",
+		display: "flex",
+		flexDirection: "column",
+		alignItems: "flex-start"}}>
 		<Box sx={{display:"flex", flexDirection: "row", alignItems: "center"}}>
 			{editingName ?
 				<>
@@ -80,9 +84,11 @@ const OrganizationUI: React.FC<OrgUIParams> =({org, api})=>{
 			:	<>
 					<h3>{orgName}</h3>
 					&nbsp;&nbsp;
-					<IconButton onClick={e=>setEditingName(true)}>
-						<EditIcon />
-					</IconButton>
+					<Tooltip title="Edit organization name">
+						<IconButton onClick={e=>setEditingName(true)}>
+							<EditIcon />
+						</IconButton>
+					</Tooltip>
 					{/* A delete button should go here when I'm up to getting confirmation working */}
 					{org.manager ? <>
 						&nbsp;&nbsp;

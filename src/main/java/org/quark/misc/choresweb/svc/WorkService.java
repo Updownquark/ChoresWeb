@@ -193,8 +193,8 @@ public class WorkService {
 			});
 			if (member == null)
 				continue;
-			member.setPoints(member.getPoints() + assn.getCompleted());
 			PointChangeRecord record = new PointChangeRecord(assn.getJob(), member, now, assn.getCompleted());
+			member.setPoints(member.getPoints() + assn.getCompleted());
 			record.setNotes(assn.getNotes());
 			records.add(record);
 			theNotificationSvc.publishMutation("assignment", false, ApiAssignment.of(assn));

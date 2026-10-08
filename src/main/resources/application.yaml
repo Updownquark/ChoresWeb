@@ -6,7 +6,10 @@ logging:
         security: DEBUG
         web: DEBUG
         beans:
-          factory: info
+          factory: INFO
+      quark:
+        chores:
+          sync: DEBUG
 
 spring:
   config:

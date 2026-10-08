@@ -22,7 +22,7 @@ const subscribeToWorkers=memberService.onChange.bind(memberService);
 const getWorkersSnapshot=memberService.getWorkers.bind(memberService);
 
 const subscribeToJobs = jobService.onChange.bind(jobService);
-const getJobsSnapshot = jobService.getActiveJobs.bind(jobService);
+const getJobsSnapshot = jobService.getAll.bind(jobService); //Freelance work can be any job
 
 const subscribeToResources = resourcesService.onChange.bind(resourcesService);
 const getResourcesSnapshot = resourcesService.getAll.bind(resourcesService);
@@ -326,7 +326,9 @@ const JobsUI: React.FC<ChoresTabParams> = ({api, org, visible})=>{
 						<TableCell><b>Name</b></TableCell>
 						<TableCell><b>Points</b></TableCell>
 						<TableCell><b>Level</b></TableCell>
+						{/* Labels were used by a previous version--they're not useful anymore
 						<TableCell><b>Labels</b></TableCell>
+						*/}
 					</TableRow>
 				</TableHead>
 				<TableBody>
@@ -368,14 +370,15 @@ const JobsUI: React.FC<ChoresTabParams> = ({api, org, visible})=>{
 									parser={parseInt} />
 								: <TableCell>{worker.level}</TableCell>
 							}
-							{org.manager ?
+							{/* Labels were used by a previous version--they're not useful anymore
+							org.manager ?
 								<EditableTableCell
 									value={worker.labels}
 									onSave={newLabels=>setWorkerLabels(worker, newLabels)}
 									parser={parseLabels}
 									renderer={labels=>labels ? labels.join(",") : ""} />
 								: <TableCell>worker.labels ? worker.labels.join(",") : ""</TableCell>
-							}
+							*/}
 						</TableRow>;
 					})}
 				</TableBody>
@@ -406,7 +409,7 @@ const JobsUI: React.FC<ChoresTabParams> = ({api, org, visible})=>{
 						{jobs.map(job=><MenuItem
 							key={job.id}
 							value={job.id}
-							sx={{color: job.active ? "black" : "darkgray"}}>
+							sx={{color: job.active ? "" : "darkgray"}}>
 							{job.name}
 						</MenuItem>)}
 					</Select>

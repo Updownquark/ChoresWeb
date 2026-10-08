@@ -87,7 +87,6 @@ export const CustomLogin: React.FC<CustomLoginProps> = ({
 			isCurrentMountTrackActive = false;
 			abortController.abort();
 			authService.onAuthenticationFailure = null;
-			globalLogoutTrigger = null;
 		};
 	}, [authService]);
 

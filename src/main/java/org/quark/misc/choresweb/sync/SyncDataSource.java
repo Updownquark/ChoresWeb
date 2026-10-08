@@ -191,8 +191,16 @@ public interface SyncDataSource<U, T> {
 				fieldType = (Class<F>) idField.getType();
 			}
 			return jsonFilterValue -> {
-				Object coercedValue = objectMapper.convertValue(jsonFilterValue, fieldType);
-				return new ConstValueFilter<>(getter, coercedValue);
+				try {
+					Object coercedValue = objectMapper.convertValue(jsonFilterValue, fieldType);
+					return new ConstValueFilter<>(getter, coercedValue);
+				} catch (RuntimeException e) {
+					ParseException x = new ParseException(
+						"Failed to parse " + type.getSimpleName() + "." + field.getName() + " (" + fieldType + "): " + e.getMessage(),
+						0);
+					x.addSuppressed(e);
+					throw x;
+				}
 			};
 		}
 
