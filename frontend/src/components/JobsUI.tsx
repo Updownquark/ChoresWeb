@@ -249,7 +249,11 @@ const JobsUI: React.FC<ChoresTabParams> = ({api, org, visible})=>{
 								:
 								<TableCell sx={cellStyle}>{job.value}</TableCell>
 							}
-							<TableCell sx={cellStyle}>{job.lastDone ? myDateFormat.format(new Date(job.lastDone!)) : "Never"}</TableCell>
+							<TableCell sx={{
+								...cellStyle,
+								whiteSpace: "nowrap",
+								width: "1%",
+								}}>{job.lastDone ? myDateFormat.format(new Date(job.lastDone!)) : "Never"}</TableCell>
 							{/*org.manager ?
 								<EditableTableCell
 									sx={cellStyle}
@@ -284,7 +288,12 @@ const JobsUI: React.FC<ChoresTabParams> = ({api, org, visible})=>{
 									renderer={labels=>labels ? labels.join(",") : ""} />
 								: <TableCell sx={cellStyle}>worker.labels ? worker.labels.join(",") : ""</TableCell>
 							*/}
-							<TableCell sx={{paddingTop: 0, paddingBottom: 0}}>
+							<TableCell sx={{
+								paddingTop: 0,
+								paddingBottom: 0,
+								whiteSpace: "nowrap",
+								width: "1%"
+								}}>
 								{org.manager ?
 									<Checkbox
 									 	sx={{paddingTop: 0, paddingBottom: 0}}

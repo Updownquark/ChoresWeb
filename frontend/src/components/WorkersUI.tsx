@@ -450,7 +450,9 @@ const JobsUI: React.FC<ChoresTabParams> = ({api, org, visible})=>{
 									const usagePoints=editWorker ? pointUsage.get(editWorker!.member!.id)?.get(rsrc.id) : undefined;
 									const usageAmount=usagePoints ? usagePoints*rsrc.rate : undefined;
 									return <TableRow key={rsrc.id}>
-										<TableCell>{rsrc.name}</TableCell>
+										<TableCell sx={{whiteSpace: "nowrap", width: "1%"}}>
+											{rsrc.name}
+										</TableCell>
 										<EditableTableCell
 											value={usagePoints}
 											onSave={newValue=>usePoints(rsrc, newValue)}
@@ -490,14 +492,16 @@ const JobsUI: React.FC<ChoresTabParams> = ({api, org, visible})=>{
 							</TableBody>
 						</Table>
 					</TableContainer>
-					<Box sx={{display: selectedTab==0 ? "flex" : "none", flexDirection: "column", justifyItems: "center"}}>
+					<Box sx={{
+						display: selectedTab==0 ? "flex" : "none",
+						flexDirection: "column",
+						width: "100%",
+						justifyItems: "center"}}>
 						<Tooltip title={getPointUsageTooltip()}>
-							<span>
-								<Button
-									sx={{color: pointUsageNegative() ? "red" : "black"}}
-									disabled={!pointUsage.size}
-									onClick={commitPointUsage}>Redeem Points</Button>
-							</span>
+							<Button
+								sx={{color: pointUsageNegative() ? "red" : "black"}}
+								disabled={!pointUsage.size}
+								onClick={commitPointUsage}>Redeem Points</Button>
 						</Tooltip>
 					</Box>
 					<PointHistoryView

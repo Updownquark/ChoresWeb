@@ -83,8 +83,8 @@ const AssignmentsUI: React.FC<ChoresTabParams>=({api, org, visible})=>{
 				{jobs.map(job=>{
 					const assignments=assignmentService.getJobAssignments(job.id);
 					return <TableRow key={job.id}>
-						<TableCell>{job.name}</TableCell>
-						<TableCell>{job.value}</TableCell>
+						<TableCell sx={{whiteSpace: "nowrap", width: "1%"}}>{job.name}</TableCell>
+						<TableCell sx={{whiteSpace: "nowrap", width: "1%"}}>{job.value}</TableCell>
 						{workers.map(worker=>{
 							const assn=assignments.get(worker.member!.id);
 							return <EditableTableCell
