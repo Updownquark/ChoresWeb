@@ -4,7 +4,7 @@ import { debug, api, historyService, jobService, memberService, resourcesService
 import AddIcon from "@mui/icons-material/Add";
 import DeleteIcon from "@mui/icons-material/Delete";
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
-import { Accordion, AccordionDetails, AccordionSummary, Box, Button, Dialog, DialogTitle, IconButton, MenuItem, Paper, Select, Tab, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Tabs, TextField, Tooltip, Typography } from "@mui/material";
+import { Accordion, AccordionDetails, AccordionSummary, Box, Button, Checkbox, Dialog, DialogTitle, IconButton, MenuItem, Paper, Select, Tab, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Tabs, TextField, Tooltip, Typography } from "@mui/material";
 import { EditableTableCell } from "./util/EditableTableCell";
 import ValidatedTextField from "./util/ValidatedTextField";
 import Job from "../values/Job";
@@ -20,6 +20,7 @@ interface ApiResourceUsage{
 
 const subscribeToWorkers=memberService.onChange.bind(memberService);
 const getWorkersSnapshot=memberService.getWorkers.bind(memberService);
+const getAllMembersSnapshot=memberService.getAll.bind(memberService);
 
 const subscribeToJobs = jobService.onChange.bind(jobService);
 const getJobsSnapshot = jobService.getAll.bind(jobService); //Freelance work can be any job
@@ -37,6 +38,7 @@ const JobsUI: React.FC<ChoresTabParams> = ({api, org, visible})=>{
 	}
 
 	const workers=useSyncExternalStore(subscribeToWorkers, getWorkersSnapshot);
+	const allMembers=useSyncExternalStore(subscribeToWorkers, getAllMembersSnapshot);
 	const [editWorker, _setEditWorker] = useState<Membership | null>(getInitialEditWorker());
 	const jobs = useSyncExternalStore(subscribeToJobs, getJobsSnapshot);
 	const resources = useSyncExternalStore(subscribeToResources, getResourcesSnapshot);
@@ -45,6 +47,8 @@ const JobsUI: React.FC<ChoresTabParams> = ({api, org, visible})=>{
 	const [newWorkerEmail, setNewWorkerEmail] = useState("");
 
 	const [confirmingDelete, setConfirmingDelete] = useState(false);
+
+	const [isManagingUsers, setManagingUsers] = useState(false);
 
 	const [freeLancePoints, setFreeLancePoints] = useState(1);
 	const [freeLanceJob, setFreeLanceJob]=useState<Job | null>(null);
@@ -55,6 +59,8 @@ const JobsUI: React.FC<ChoresTabParams> = ({api, org, visible})=>{
 	const [pointUsageRefresh, setPointUsageRefresh] = useState(0);
 
 	const [showHistory, setShowHistory] = useState(false);
+
+	const members = isManagingUsers ? allMembers : workers;
 
 	useEffect(()=>{
 		if(!visible){ //Hide history when the Workers tab is de-selected
@@ -67,7 +73,7 @@ const JobsUI: React.FC<ChoresTabParams> = ({api, org, visible})=>{
 		const worker=getInitialEditWorker();
 		if(worker?.member?.id!=editWorker?.member?.id)
 			_setEditWorker(worker);
-	}, [workers]);
+	}, [members]);
 
 	const setEditWorker=(worker: Membership | null)=>{
 		_setEditWorker(worker);
@@ -86,7 +92,7 @@ const JobsUI: React.FC<ChoresTabParams> = ({api, org, visible})=>{
 		const dot=email.lastIndexOf(".");
 		if(dot<at || dot==email.length-1)
 			return "Not an email address";
-		for(const worker of workers){
+		for(const worker of members){
 			if(worker.member!.email.toLowerCase()==email.toLowerCase())
 				return `Worker '${worker.name} has this email address`;
 		}
@@ -135,6 +141,20 @@ const JobsUI: React.FC<ChoresTabParams> = ({api, org, visible})=>{
 			orgId: org.organization!.id,
 			userId: worker.member!.id,
 			level: newLevel,
+		});
+	};
+	const setIsWorker=(worker: Membership, isWorker: boolean)=>{
+		api.post("/api/members/modify", {
+			orgId: org.organization!.id,
+			userId: worker.member!.id,
+			worker: isWorker,
+		});
+	};
+	const setIsManager=(worker: Membership, isManager: boolean)=>{
+		api.post("/api/members/modify", {
+			orgId: org.organization!.id,
+			userId: worker.member!.id,
+			manager: isManager,
 		});
 	};
 	const parseLabels=(labelStr: string): readonly string[] | null => {
@@ -313,6 +333,11 @@ const JobsUI: React.FC<ChoresTabParams> = ({api, org, visible})=>{
 						</IconButton>
 					</span>
 				</Tooltip>
+				<Tooltip title="Click to toggle management of user roles">
+					<Button onClick={()=>setManagingUsers(!isManagingUsers)}>
+						{isManagingUsers ? "Stop Managing Users" : "Manage All Users"}
+					</Button>
+				</Tooltip>
 			</Box>
 			: null
 		}
@@ -326,13 +351,20 @@ const JobsUI: React.FC<ChoresTabParams> = ({api, org, visible})=>{
 						<TableCell><b>Name</b></TableCell>
 						<TableCell><b>Points</b></TableCell>
 						<TableCell><b>Level</b></TableCell>
+						{isManagingUsers
+						? <>
+							<TableCell><b>Worker?</b></TableCell>
+							<TableCell><b>Manager?</b></TableCell>
+						</>
+						: null
+						}
 						{/* Labels were used by a previous version--they're not useful anymore
 						<TableCell><b>Labels</b></TableCell>
 						*/}
 					</TableRow>
 				</TableHead>
 				<TableBody>
-					{workers.map(worker=>{
+					{members.map(worker=>{
 						const editing=worker.member?.id==editWorker?.member?.id;
 						const nameEditable=org.manager || worker.member!.id==org.member?.id;
 						return <TableRow
@@ -354,13 +386,18 @@ const JobsUI: React.FC<ChoresTabParams> = ({api, org, visible})=>{
 										return "Name cannot be empty";
 									else if(newName.length>100)
 										return "Name cannot exceed 100 characters";
-									for(const w of workers){
+									for(const w of members){
 										if(w.member!.id!=worker.member!.id && w.name==newName)
 											return "Another worker named '"+newName+"' exists";
 									}
 									return null;
-								}} />
-								: <TableCell>{worker.name}</TableCell>
+								}}
+								tooltip={worker.member.email} />
+								: <TableCell>
+									<Tooltip title={worker.member.email}>
+										<span>{worker.name}</span>
+									</Tooltip>
+								</TableCell>
 							}
 							<TableCell>{worker.points}</TableCell>
 							{org.manager ?
@@ -369,6 +406,44 @@ const JobsUI: React.FC<ChoresTabParams> = ({api, org, visible})=>{
 									onSave={newLevel=>setWorkerLevel(worker, newLevel)}
 									parser={parseInt} />
 								: <TableCell>{worker.level}</TableCell>
+							}
+							{isManagingUsers
+							? <>
+								<TableCell sx={{
+									paddingTop: 0,
+									paddingBottom: 0,
+									whiteSpace: "nowrap",
+									width: "1%"
+									}}>
+									<Checkbox
+										sx={{paddingTop: 0, paddingBottom: 0}}
+										checked={worker.worker}
+										onChange={e=>setIsWorker(worker, e.target.checked)} />
+								</TableCell>
+								<TableCell sx={{
+									paddingTop: 0,
+									paddingBottom: 0,
+									whiteSpace: "nowrap",
+									width: "1%"
+									}}>
+									{worker.member.id==org.member.id
+									? <Tooltip title="You cannot revoke your own manager status">
+										<span>
+											<Checkbox
+												sx={{paddingTop: 0, paddingBottom: 0}}
+												disabled={true}
+												checked={worker.manager} />
+										</span>
+									</Tooltip>
+									: <Checkbox
+										sx={{paddingTop: 0, paddingBottom: 0}}
+										disabled={worker.member.id==org.member.id}
+										checked={worker.manager}
+										onChange={e=>setIsManager(worker, e.target.checked)} />
+									}
+								</TableCell>
+							</>
+							: null
 							}
 							{/* Labels were used by a previous version--they're not useful anymore
 							org.manager ?
@@ -385,7 +460,7 @@ const JobsUI: React.FC<ChoresTabParams> = ({api, org, visible})=>{
 			</Table>
 		</TableContainer>
 
-		<Box sx={{display: editWorker ? "flex" : "none", flexDirection: "column", width: "100%"}}>
+		<Box sx={{display: editWorker?.worker ? "flex" : "none", flexDirection: "column", width: "100%"}}>
 			{org.manager ?
 				/* Freelance Work Reporting */
 				<Box sx={{display: visible ? "flex" : "none", flexDirection: "row", alignItems: "center"}}>
@@ -429,7 +504,7 @@ const JobsUI: React.FC<ChoresTabParams> = ({api, org, visible})=>{
 				: null
 			}
 
-			{org.manager ?
+			{(org.manager && editWorker?.worker) ?
 				<>
 					<Tabs value={selectedTab} onChange={(e, newValue)=>setSelectedTab(newValue)}>
 						<Tab label="Point Usage" />
@@ -513,21 +588,22 @@ const JobsUI: React.FC<ChoresTabParams> = ({api, org, visible})=>{
 						userId={editWorker?.member?.id}
 						visible={visible && selectedTab==1 && !!editWorker} />
 				</>
-				:
-				<Accordion
-					sx={{dislay: editWorker ? "" : "none"}}
-					expanded={showHistory}
-					onChange={(e: React.SyntheticEvent, expanded: boolean)=>setShowHistory(expanded)}>
-					<AccordionSummary expandIcon={<ExpandMoreIcon />}>
-						<Typography component="span">Worker History</Typography>
-					</AccordionSummary>
-					<AccordionDetails>
-						 <PointHistoryView
-						 	org={org}
-							userId={editWorker?.member?.id}
-							visible={visible && showHistory && !!editWorker} />
-					</AccordionDetails>
-				</Accordion>
+				: (editWorker?.worker
+					? <Accordion
+						sx={{dislay: editWorker ? "" : "none"}}
+						expanded={showHistory}
+						onChange={(e: React.SyntheticEvent, expanded: boolean)=>setShowHistory(expanded)}>
+						<AccordionSummary expandIcon={<ExpandMoreIcon />}>
+							<Typography component="span">Worker History</Typography>
+						</AccordionSummary>
+						<AccordionDetails>
+							<PointHistoryView
+								org={org}
+								userId={editWorker?.member?.id}
+								visible={visible && showHistory && !!editWorker} />
+						</AccordionDetails>
+					</Accordion>
+					: null)
 			}
 		</Box>
 	</Box>

@@ -1,5 +1,5 @@
 import React, { useState, useRef } from "react";
-import { TableCell, TableCellProps } from "@mui/material";
+import { TableCell, TableCellProps, Tooltip } from "@mui/material";
 import ValidatedTextField from "./ValidatedTextField"; // Path to your component
 
 interface EditableTableCellProps<T> extends Omit<TableCellProps, "onChange"> {
@@ -8,6 +8,7 @@ interface EditableTableCellProps<T> extends Omit<TableCellProps, "onChange"> {
 	parser: (value: string) => T;
 	renderer?: (value: T) => string;
 	validator?: (value: T) => string | null;
+	tooltip?: string;
 }
 
 export function EditableTableCell<T>({
@@ -16,6 +17,7 @@ export function EditableTableCell<T>({
 	parser,
 	renderer,
 	validator,
+	tooltip,
 	...tableCellProps
 }: EditableTableCellProps<T>) {
 	const [isEditing, setIsEditing] = useState(false);
@@ -65,8 +67,8 @@ export function EditableTableCell<T>({
 				...tableCellProps.sx,
 			}}
 		>
-			{isEditing ? (
-				<ValidatedTextField<T>
+			{isEditing
+				? <ValidatedTextField<T>
 					value={value}
 					onChange={(newValue) => {
 						onSave(newValue);
@@ -88,9 +90,12 @@ export function EditableTableCell<T>({
 					variant="standard"
 					fullWidth
 				/>
-			) : (
-				displayValue
-			)}
+			: tooltip
+				? <Tooltip title={tooltip}>
+					<span>{displayValue}</span>
+				</Tooltip>
+				: <span>{displayValue}</span>
+			}
 		</TableCell>
 	);
 }

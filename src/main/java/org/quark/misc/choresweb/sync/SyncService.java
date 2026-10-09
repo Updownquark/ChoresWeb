@@ -149,7 +149,8 @@ public class SyncService<U> {
 	private final Map<String, ClientEventStream> theClientStreams;
 
 	private final Sinks.Many<SyncDataEvent<U, ?>> theLiveSink = Sinks.many().unicast().onBackpressureBuffer();
-	private final Flux<SyncDataEvent<U, ?>> theSharedLiveFlux = theLiveSink.asFlux().share();
+	private final Flux<SyncDataEvent<U, ?>> theSharedLiveFlux = theLiveSink.asFlux()//
+		.publish().autoConnect();
 
 	private final ConcurrentHashMap<String, Boolean> theLoggedMissingEntityTypes;
 
@@ -161,7 +162,7 @@ public class SyncService<U> {
 
 		theNotificationService.mutations()//
 		.publishOn(Schedulers.boundedElastic())//
-			.concatMap(event -> Mono.fromCallable(() -> parseEvent(event)))//
+		.concatMap(event -> Mono.fromCallable(() -> parseEvent(event)))//
 		.filter(Objects::nonNull)//
 		// .doOnNext(theLiveSink::tryEmitNext)//
 		.doOnNext(event -> {

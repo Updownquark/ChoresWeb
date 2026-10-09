@@ -61,22 +61,20 @@ public class ImportExportService {
 	private final UserService theUserSvc;
 	private final PointResourceService theResourceSvc;
 	private final WorkService theWorkSvc;
-	private final PointHistoryService theHistorySvc;
 	private final PointChangeRecordRepo theHistoryRepo;
 	private final AssignmentRepo theAssnRepo;
 	private final PointResourceRepo theResourceRepo;
 	private final EntityManager theEntityManager;
 
 	public ImportExportService(JobRepo jobRepo, MembershipRepo membershipRepo, JobService jobService, UserService userSvc,
-		PointResourceService resourceSvc, WorkService workSvc, PointHistoryService historySvc, PointChangeRecordRepo historyRepo,
-		AssignmentRepo assnRepo, PointResourceRepo resourceRepo, EntityManager entityManager) {
+		PointResourceService resourceSvc, WorkService workSvc, PointChangeRecordRepo historyRepo, AssignmentRepo assnRepo,
+		PointResourceRepo resourceRepo, EntityManager entityManager) {
 		theJobRepo = jobRepo;
 		theMembershipRepo = membershipRepo;
 		theJobService = jobService;
 		theUserSvc = userSvc;
 		theResourceSvc = resourceSvc;
 		theWorkSvc = workSvc;
-		theHistorySvc = historySvc;
 		theHistoryRepo = historyRepo;
 		theAssnRepo = assnRepo;
 		theResourceRepo = resourceRepo;
@@ -401,7 +399,8 @@ public class ImportExportService {
 					pcr.setNotes(line.get(8, String.class));
 					newPCRs.add(pcr);
 					if (newPCRs.size() >= 100) {
-						theHistorySvc.historyAdded(newPCRs);
+						// Don't spam the notification service with history updates
+						theHistoryRepo.saveAll(newPCRs);
 						theEntityManager.clear();
 						newPCRs.clear();
 					}
@@ -414,7 +413,9 @@ public class ImportExportService {
 			for (Membership worker : newWorkers)
 				theUserSvc.memberUpdated(worker);
 			if (!newPCRs.isEmpty()) {
-				theHistorySvc.historyAdded(newPCRs);
+				// Don't spam the notification service with history updates
+				theHistoryRepo.saveAll(newPCRs);
+				theEntityManager.clear();
 				newPCRs.clear();
 			}
 			log.info("\t\t" + addedPCRs + " added, " + preExisting + " pre-existing");

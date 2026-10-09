@@ -6,10 +6,12 @@ import { globalLogoutTrigger } from "./CustomLogin";
 import EditIcon from "@mui/icons-material/Edit";
 import CheckIcon from '@mui/icons-material/Check';
 import { AxiosInstance } from "axios";
+import { debug } from "../../services/services";
+import GodView from "../GodView";
 
 interface BannerProps{
 	title: string;
-	org?: Membership | null;
+	org: Membership | null;
 	exitOrg: ()=>void;
 	api: AxiosInstance;
 }
@@ -18,6 +20,7 @@ const Banner: React.FC<BannerProps> = ({title, org, exitOrg, api}) =>{
 	const [showAbout, setShowAbout]=useState(false);
 	const [showProfile, setShowProfile]=useState(false);
 	const [editingUserName, setEditingUserName]=useState(false);
+	const [showGodView, setShowGodView] = useState(false);
 	const [editName, setEditName] = useState("");
 	const {mode, setMode, systemMode} = useColorScheme();
 
@@ -34,6 +37,7 @@ const Banner: React.FC<BannerProps> = ({title, org, exitOrg, api}) =>{
 			id: org!.member.id,
 			name: editName
 		});
+		setEditingUserName(false);
 	}
 
 	return <Box sx={{
@@ -59,6 +63,10 @@ const Banner: React.FC<BannerProps> = ({title, org, exitOrg, api}) =>{
 			{org
 				? <MenuItem onClick={()=>setShowProfile(true)}>View User Profile</MenuItem>
 				: null
+			}
+			{org?.member.god
+			? <MenuItem onClick={()=>setShowGodView(true)}>God View</MenuItem>
+			: null
 			}
 			<MenuItem onClick={()=>{
 				setShowAbout(true);
@@ -103,13 +111,33 @@ const Banner: React.FC<BannerProps> = ({title, org, exitOrg, api}) =>{
 			sx={{textAlign: "center"}}
 			open={showProfile}
 			onClose={()=>setShowProfile(false)}>
-			<DialogTitle>Your Profile</DialogTitle>
+			<DialogTitle>Your User Profile</DialogTitle>
 			<DialogContent>
 				<Grid
 					container
 					spacing={2}
 					sx={{width: "100%", mt: 0.5}}>
-					<Grid columns={2}><b>Email:</b></Grid>
+					{debug
+					? <>
+						<Grid columns={2}><b>ID</b></Grid>
+						<Grid columns={10}>{org?.member.id}</Grid>
+					</>
+					: null
+					}
+
+					<Grid columns={2}><b>Email Address:</b></Grid>
+					<Grid columns={9}>{org?.member.email}</Grid>
+					<Grid columns={1}>
+						<Tooltip title="Your email address is how you log in.  This cannot currently be changed.">
+							<span>
+								<IconButton disabled>
+									<EditIcon />
+								</IconButton>
+							</span>
+						</Tooltip>
+					</Grid>
+					
+					<Grid columns={2}><b>Global User Name:</b></Grid>
 					<Grid columns={9}>
 						{editingUserName
 						? <TextField
@@ -125,7 +153,9 @@ const Banner: React.FC<BannerProps> = ({title, org, exitOrg, api}) =>{
 							}}
 							autoFocus
 							label="Enter your preferred user name" />
-						: org?.member.email
+						: <Tooltip title="The user name you will have in organizations you are added to">
+							<span>{org?.member.name}</span>
+						</Tooltip>
 						}
 					</Grid>
 					<Grid columns={1}>
@@ -147,6 +177,11 @@ const Banner: React.FC<BannerProps> = ({title, org, exitOrg, api}) =>{
 					</Grid>
 				</Grid>
 			</DialogContent>
+		</Dialog>
+
+		<Dialog open={showGodView} onClose={()=>setShowGodView(false)}>
+			<DialogTitle>God View</DialogTitle>
+			<GodView org={org} api={api}/>
 		</Dialog>
 	</Box>
 };

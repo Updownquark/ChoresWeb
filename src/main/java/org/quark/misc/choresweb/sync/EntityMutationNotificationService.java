@@ -72,7 +72,8 @@ public abstract class EntityMutationNotificationService {
 
 	private final Sinks.Many<EntityMutationEvent> theLocalSink = Sinks.many().unicast().onBackpressureBuffer();
 	// share() allows multiple subscribers
-	private final Flux<EntityMutationEvent> theSharedLocalFlux = theLocalSink.asFlux().share();
+	private final Flux<EntityMutationEvent> theSharedLocalFlux = theLocalSink.asFlux()//
+		.publish().autoConnect();
 
 	protected EntityMutationNotificationService(ApplicationEventPublisher internalEventPublisher) {
 		theInternalEventPublisher = internalEventPublisher;
