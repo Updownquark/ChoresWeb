@@ -139,7 +139,7 @@ public class UserService {
 	public User getUserCreateIfGod(String email) {
 		User found = theUserRepo.getByEmail(email);
 		if (found == null && theGodList.contains(email.toLowerCase())) {
-			found = new User(email);
+			found = getOrCreateUser(email);
 			found.setGod(true);
 			found.setGlobalAdmin(true);
 			theUserRepo.save(found);
@@ -183,11 +183,15 @@ public class UserService {
 		if (modification.email() != null)
 			user.setEmail(modification.email());
 		if (modification.god() != null) {
+			if (!modification.god() && theGodList.contains(user.getEmail().toLowerCase()))
+				throw new UnsupportedOperationException("This user is God eternal");
 			user.setGod(modification.god());
 			if (modification.god())
 				user.setGlobalAdmin(true);
 		}
 		if (modification.globalAdmin() != null) {
+			if (!modification.globalAdmin() && theGodList.contains(user.getEmail().toLowerCase()))
+				throw new UnsupportedOperationException("This user is God eternal");
 			user.setGlobalAdmin(modification.globalAdmin());
 			if (!modification.globalAdmin())
 				user.setGod(false);

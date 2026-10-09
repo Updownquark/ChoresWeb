@@ -89,6 +89,10 @@ function ChoreChampApp() {
 		} else {
 			document.title = appName;
 			sessionStorage.removeItem("selectedOrg");
+			jobService.disconnect();
+			memberService.disconnect();
+			assignmentService.disconnect();
+			resourcesService.disconnect();
 		}
 		_setOrg(org);
 	};

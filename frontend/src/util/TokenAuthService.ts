@@ -97,13 +97,15 @@ export default class TokenAuthService {
 			return newAccessToken;
 		} catch (refreshError) {
 			this._isRefreshing = false;
-			this._refreshSubscribers = [];
 
-			// Wipes memory and cleans out sessionStorage automatically
-			this.setAccessToken(null);
+			if(axios.isAxiosError(refreshError) && refreshError.response){
+				// Wipes memory and cleans out sessionStorage automatically
+				this._refreshSubscribers = [];
+				this.setAccessToken(null);
 
-			if (this.onAuthenticationFailure) {
-				this.onAuthenticationFailure();
+				if (this.onAuthenticationFailure) {
+					this.onAuthenticationFailure();
+				}
 			}
 
 			return Promise.reject(refreshError);

@@ -18,7 +18,7 @@ const OrganizationList: React.FC<OrgListParams>=({orgs, setOrg})=>{
 			const orgId=org.organization!.id;
 
 			return <ListItem
-				key="orgId"
+				key={orgId}
 				secondaryAction={
                     <IconButton edge="end" aria-label="delete" onClick={()=>setDeleteOrg(org.organization)}>
                       <DeleteIcon />

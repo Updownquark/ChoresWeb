@@ -1,3 +1,5 @@
+import { AxiosInstance, AxiosRequestConfig } from "axios";
+
 /**
  * Searches a sorted array using binary search.
  *
@@ -103,19 +105,97 @@ export function groupBy<K, V>(values: Iterable<V>, key: (value: V) => K): Map<K,
 }
 
 export function hash(arr: readonly any[]): string {
-  const str = JSON.stringify(arr);
-  let h1 = 0xdeadbeef, h2 = 0x41c6ce57;
-  
-  for (let i = 0; i < str.length; i++) {
-    const code = str.charCodeAt(i);
-    h1 = Math.imul(h1 ^ code, 2654435761);
-    h2 = Math.imul(h2 ^ code, 1597334677);
+	const str = JSON.stringify(arr);
+	let h1 = 0xdeadbeef,
+		h2 = 0x41c6ce57;
+
+	for (let i = 0; i < str.length; i++) {
+		const code = str.charCodeAt(i);
+		h1 = Math.imul(h1 ^ code, 2654435761);
+		h2 = Math.imul(h2 ^ code, 1597334677);
+	}
+
+	h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 16), 3266489909);
+	h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 16), 3266489909);
+
+	const pad = n => (n >>> 0).toString(16).padStart(8, "0");
+
+	return pad(h1) + pad(h2) + pad(h1 ^ h2) + pad((h1 + h2) >>> 0);
+}
+
+export function deepEqual(a: any, b: any): boolean {
+  // Handle identical primitive references or same-object identity
+  if (a === b) return true;
+
+  // Handle special numeric cases like NaN !== NaN
+  if (typeof a === 'number' && typeof b === 'number' && isNaN(a) && isNaN(b)) {
+    return true;
   }
-  
-  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 16), 3266489909);
-  h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 16), 3266489909);
-  
-  const pad = (n) => (n >>> 0).toString(16).padStart(8, '0');
-  
-  return pad(h1) + pad(h2) + pad(h1 ^ h2) + pad((h1 + h2) >>> 0);
+
+  // Filter out null or non-object primitives
+  if (typeof a !== 'object' || a === null || typeof b !== 'object' || b === null) {
+    return false;
+  }
+
+  // Handle Date comparison
+  if (a instanceof Date && b instanceof Date) {
+    return a.getTime() === b.getTime();
+  }
+
+  // Handle RegExp comparison
+  if (a instanceof RegExp && b instanceof RegExp) {
+    return a.toString() === b.toString();
+  }
+
+  // Ensure they share the same key length
+  const keysA = Object.keys(a);
+  const keysB = Object.keys(b);
+  if (keysA.length !== keysB.length) return false;
+
+  // Recursively evaluate every key
+  for (const key of keysA) {
+    if (!Object.prototype.hasOwnProperty.call(b, key) || !deepEqual(a[key], b[key])) {
+      return false;
+    }
+  }
+
+  return true;
+};
+
+export async function downloadFile(
+	api: AxiosInstance,
+	endPoint: string,
+	requestConfig: AxiosRequestConfig,
+	defaultFileName: string,
+): Promise<void> {
+	const response = await api.get(endPoint, {
+		responseType: "blob", //Tells Axios to handle the response as binary data
+		...requestConfig,
+	});
+
+	// Extract the filename from the Content-Disposition header if available
+	let downloadName = defaultFileName;
+	const disposition = response.headers["content-disposition"];
+	if (disposition && disposition.includes("fileName=")) {
+		const filenameRegex = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/;
+		const matches = filenameRegex.exec(disposition);
+		if (matches != null && matches[1]) {
+			downloadName = matches[1].replace(/['"]/g, "");
+		}
+	}
+
+	// Create a temporary URL pointing to the Blob object
+	const blob = new Blob([response.data], { type: response.headers["content-type"]?.toString() });
+	const fileUrl = window.URL.createObjectURL(blob); //
+
+	// Create an invisible anchor tag and programmatically click it to trigger download
+	const link = document.createElement("a"); //
+	link.href = fileUrl; //
+	link.setAttribute("download", downloadName); // Specifies the file name
+	document.body.appendChild(link);
+	link.click();
+
+	// Clean up the DOM and memory
+	document.body.removeChild(link);
+	window.URL.revokeObjectURL(fileUrl);
 }

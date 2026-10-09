@@ -57,6 +57,7 @@ interface ActiveSubscription {
 	id: string | null;
 	filters: object;
 	listener: SyncEventListener;
+	deleted: boolean;
 }
 
 interface PendingModification {
@@ -114,6 +115,7 @@ export default class SyncService {
 			id: null,
 			filters: filters,
 			listener: listener as SyncEventListener,
+			deleted: false,
 		};
 
 		this._subscriptions.get(entityType)!.add(subRecord);
@@ -126,16 +128,17 @@ export default class SyncService {
 		this.sendSubscriptionModification(encodedSubscriptionJson, [], true);
 
 		return () => {
-			const entitySet = this._subscriptions.get(entityType);
-			if (entitySet) {
-				entitySet.delete(subRecord);
-				if (entitySet.size === 0) {
-					this._subscriptions.delete(entityType);
-				}
-			}
-
+			subRecord.deleted=true;
 			if (subRecord.id) {
-				this.sendSubscriptionModification("", [subRecord.id], false);
+				const entitySet = this._subscriptions.get(entityType);
+				if (entitySet) {
+					entitySet.delete(subRecord);
+					if (entitySet.size === 0) {
+						this._subscriptions.delete(entityType);
+					}
+				}
+
+				this.sendSubscriptionModification("", [subRecord.id], true);
 			}
 		};
 	}
@@ -143,12 +146,18 @@ export default class SyncService {
 	private gatherInitialSubscriptions(): string {
 		const payloads: object[] = [];
 		this._subscriptions.forEach((set, entityType) => {
+			if(set.size)
+				console.log("Sync initial subs: "+entityType);
 			set.forEach(sub => {
-				payloads.push({
-					subscribeEntityType: entityType,
-					...sub.filters,
-				},
-				);
+				if(sub.deleted){
+					set.delete(sub);
+				} else {
+					console.log("\t", sub.filters);
+					payloads.push({
+						subscribeEntityType: entityType,
+						...sub.filters,
+					});
+				}
 			});
 		});
 		return JSON.stringify(payloads);
@@ -190,7 +199,8 @@ export default class SyncService {
 
 			try{
 				this.setConnectionStatus(new ConnectionStatus("attempt", "Reconnecting..."));
-				await this._tokenService.tryReconnect();
+				if(await this._tokenService.tryReconnect())
+					this.init();
 			} catch(authError){
 				this.setConnectionStatus(new ConnectionStatus("failed", "Connection Failed"));
 				console.error("Background re-auth failed.");
@@ -222,11 +232,11 @@ export default class SyncService {
 						set.forEach(sub => (sub.id = null));
 					});
 					if (payload.resume) {
-						console.log("Sync re-established");
+						console.log("Sync re-established", this._streamId.substring(0, 8));
 					} else if(myPrevEventId){
-						console.log("Sync outdated--reset required")
+						console.log("Sync outdated--reset required", this._streamId.substring(0, 8))
 					} else {
-						console.log("Sync initialized");
+						console.log("Sync initialized", this._streamId.substring(0, 8));
 					}
 
 					if (payload.initSubscriptions && Array.isArray(payload.initSubscriptions)) {
@@ -243,6 +253,7 @@ export default class SyncService {
 					break;
 
 				case "subscriptionChanged":
+					console.debug("Sync subs changed");
 					if (payload.newSubscriptions && Array.isArray(payload.newSubscriptions)) {
 						this.populateSubscriptionIds(payload.newSubscriptions);
 					}
@@ -321,6 +332,8 @@ export default class SyncService {
 			for (const sub of targetSet) {
 				if (sub.id === null) {
 					sub.id = fullId;
+					if(sub.deleted)
+						this.sendSubscriptionModification("", [sub.id], true);
 					break;
 				}
 			}
@@ -353,7 +366,9 @@ export default class SyncService {
 	private distributeToListeners(entityType: string, eventPayload: any) {
 		const targetSet = this._subscriptions.get(entityType);
 		if (targetSet) {
-			targetSet.forEach(sub => sub.listener(eventPayload));
+			queueMicrotask(()=>{
+				targetSet.forEach(sub => sub.listener(eventPayload));
+			});
 		}
 	}
 

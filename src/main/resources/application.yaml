@@ -3,13 +3,14 @@ logging:
     org:
       springframework:
         '': INFO
-        security: DEBUG
-        web: DEBUG
+        security: INFO
+        web: INFO
         beans:
           factory: INFO
       quark:
-        chores:
-          sync: DEBUG
+        misc:
+          choresweb:
+            sync: DEBUG
 
 spring:
   config:
@@ -46,7 +47,7 @@ quark:
   sync:
     scaling:
       enabled: false
-      max-events: 10000
+      max-events: 1000
       stream-key: "choresDataStream"
 
 chores:

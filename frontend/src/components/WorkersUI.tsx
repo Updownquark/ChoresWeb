@@ -498,10 +498,14 @@ const JobsUI: React.FC<ChoresTabParams> = ({api, org, visible})=>{
 						width: "100%",
 						justifyItems: "center"}}>
 						<Tooltip title={getPointUsageTooltip()}>
-							<Button
-								sx={{color: pointUsageNegative() ? "red" : "black"}}
-								disabled={!pointUsage.size}
-								onClick={commitPointUsage}>Redeem Points</Button>
+							<span>
+								<Button
+									sx={{color: pointUsageNegative() ? "red" : "black"}}
+									disabled={!pointUsage.size}
+									onClick={commitPointUsage}>
+									Redeem Points
+								</Button>
+							</span>
 						</Tooltip>
 					</Box>
 					<PointHistoryView

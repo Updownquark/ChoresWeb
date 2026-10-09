@@ -14,6 +14,7 @@ abstract class EntitySetService<E>{
 	private readonly _entities: E[]=[];
 	private readonly _entitiesById=new Map<string | number, E>();
 	private _immutableEntities: readonly E[]=[];
+	private _filters?: object;
 	private _changeListener: (()=>void) | null = null;
 	private readonly _listeners: EntityChangeListener<E> [] = [];
 
@@ -22,8 +23,12 @@ abstract class EntitySetService<E>{
 	}
 
 	public async init(filters: object){
+		if(this._filters && Utils.deepEqual(this._filters, filters))
+			return;
+
 		this.disconnect();
 
+		this._filters=filters;
 		this._changeListener = syncService.subscribe<E>(this._tableName, filters, (event) => {
 			switch (event.type) {
 				case "reset":
@@ -141,6 +146,7 @@ abstract class EntitySetService<E>{
 
 	public disconnect(){
 		this.clear();
+		this._filters=undefined;
 		if(this._changeListener){
 			this._changeListener();
 			this._changeListener=null;

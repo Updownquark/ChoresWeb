@@ -14,7 +14,10 @@ import org.springframework.data.domain.Slice;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.jpa.repository.QueryHints;
 import org.springframework.data.repository.query.Param;
+
+import jakarta.persistence.QueryHint;
 
 public interface PointChangeRecordRepo extends JpaRepository<PointChangeRecord, Long> {
 	static final String SELECT_DTO = "SELECT new org.quark.misc.choresweb.entities.PointChangeRecord$FullPcrDto("//
@@ -86,6 +89,10 @@ public interface PointChangeRecordRepo extends JpaRepository<PointChangeRecord, 
 		+ " AND pcr.changeSourceId=:changeSourceId")
 	int getChangeSourceHistorySizeForWorker(@Param("orgId") long orgId, @Param("workerId") long workerId,
 		@Param("changeType") PointChangeRecord.PointChangeType changeType, @Param("changeSourceId") long changeSourceId);
+
+	@Query("FROM PointChangeRecord WHERE organization=:org")
+	@QueryHints(@QueryHint(name = "jakarta.persistence.fetchSize", value = "500"))
+	Stream<PointChangeRecord> getOrgHistory(@Param("org") Organization org);
 
 	@Modifying
 	default void deleteForMember(Membership member) {

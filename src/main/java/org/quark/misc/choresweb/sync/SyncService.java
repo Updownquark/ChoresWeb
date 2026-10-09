@@ -119,7 +119,26 @@ public class SyncService<U> {
 
 		@Override
 		public String toString() {
-			return "subChange: " + streamId.substring(0, 8) + "-" + unsubscribe + "+" + subscribe;
+			StringBuilder str = new StringBuilder()//
+				.append(streamId, 0, 8)//
+				.append(' ').append(getEntityTypeName())//
+				.append(" subChange:");
+			if (unsubscribe != null && !unsubscribe.isEmpty()) {
+				str.append("\n\t-[");
+				boolean first = true;
+				for (String unsub : unsubscribe) {
+					if (first)
+						first = false;
+					else
+						str.append(", ");
+					str.append(unsub.substring(0, 8));
+				}
+				str.append(']');
+			}
+			if (subscribe != null && !subscribe.isEmpty()) {
+				str.append("\n\t+").append(subscribe);
+			}
+			return str.toString();
 		}
 	}
 
@@ -129,7 +148,7 @@ public class SyncService<U> {
 	private final Map<String, SyncDataSource<U, ?>> theDataSources;
 	private final Map<String, ClientEventStream> theClientStreams;
 
-	private final Sinks.Many<SyncEvent<U, ?>> theLiveSink = Sinks.many().multicast().onBackpressureBuffer();
+	private final Sinks.Many<SyncDataEvent<U, ?>> theLiveSink = Sinks.many().multicast().onBackpressureBuffer();
 
 	private final ConcurrentHashMap<String, Boolean> theLoggedMissingEntityTypes;
 
@@ -207,7 +226,7 @@ public class SyncService<U> {
 
 		// 1. Create a dynamic processor sink specifically to listen for this individual client's disconnection signal
 		Sinks.Empty<Void> disconnectSink = Sinks.empty();
-		Flux<SyncEvent<U, ?>> liveFlux = theLiveSink.asFlux()//
+		Flux<SyncDataEvent<U, ?>> liveFlux = theLiveSink.asFlux()//
 			.takeUntilOther(disconnectSink.asMono());
 
 		MessageId lastMessageId = lastEventId == null ? null : new MessageId(lastEventId);
@@ -229,7 +248,7 @@ public class SyncService<U> {
 						Flux<SyncDataEvent<U, ?>> handshakeGapClosure = theNotificationService.getCachedMutations(newestId.orElse(null))//
 							.map(this::parseEvent);
 						return clientStream.init(newestId.orElse(null), false, subscriptions,
-							Flux.<SyncEvent<U, ?>> concat(handshakeGapClosure, liveFlux));
+							Flux.<SyncDataEvent<U, ?>> concat(handshakeGapClosure, liveFlux));
 					});
 				} else { // Client's memory is within the history window, so we can just catch it up
 					Flux<? extends SyncDataEvent<U, ?>> catchUpFlux = theNotificationService.getCachedMutations(lastMessageId)//
@@ -329,7 +348,8 @@ public class SyncService<U> {
 				if (!(jsonSub instanceof JsonObject))
 					throw new IllegalArgumentException("Subscriptions must be JSON objects");
 				SyncDataSubscription<U, ?> sub = parseSubscription(me, (JsonObject) jsonSub);
-				subscriptionIds.add(sub.getSubscriptionId());
+				subscriptionIds
+				.add(new StringBuilder(sub.getDataSource().getEntityTypeName()).append('/').append(sub.getSubscriptionId()).toString());
 				groupedSubChanges.computeIfAbsent(sub.getDataSource().getEntityTypeName(), _ -> {
 					return new SubChange<>(sub.getDataSource());
 				}).add(sub);
@@ -337,11 +357,7 @@ public class SyncService<U> {
 		} else
 			subscriptionIds = Collections.emptyList();
 		for (SubChange<?> change : groupedSubChanges.values()) {
-			// Ensures HTTP threads wait cleanly for their turn to inject the delta modification event
-			// Offload to prevent recursive locking in reactor core
-			java.util.concurrent.CompletableFuture.runAsync(() -> {
-				theLiveSink.emitNext(change.toEvent(), Sinks.EmitFailureHandler.busyLooping(Duration.ofSeconds(2)));
-			});
+			clientStream.queueSubscriptionChange(change.toEvent());
 		}
 
 		return subscriptionIds;
@@ -372,7 +388,8 @@ public class SyncService<U> {
 		private final AtomicLong theSequence;
 		private final AtomicReference<MessageId> theLastMessageId;
 		private final Map<String, Map<String, SyncDataSubscription<U, ?>>> theSubscriptions = new ConcurrentHashMap<>();
-		private final Sinks.Many<ServerSentEvent<String>> theSubscriptionUpdateEventSink = Sinks.many().multicast().onBackpressureBuffer();
+		private final Sinks.Many<SubscriptionChangeEvent<U, ?>> theSubscriptionUpdateEventSink = Sinks.many().unicast()
+			.onBackpressureBuffer();
 
 		ClientEventStream(Object ownerId) {
 			this.ownerId = ownerId;
@@ -382,7 +399,7 @@ public class SyncService<U> {
 		}
 
 		Flux<ServerSentEvent<String>> init(MessageId lastEventId, boolean catchUp, List<SyncDataSubscription<U, ?>> subscriptions,
-			Flux<? extends SyncEvent<U, ?>> eventFlux) {
+			Flux<? extends SyncDataEvent<U, ?>> eventFlux) {
 			theLastMessageId.set(lastEventId);
 
 			for (SyncDataSubscription<U, ?> sub : subscriptions) {
@@ -395,21 +412,15 @@ public class SyncService<U> {
 			Flux<ServerSentEvent<String>> processedEventFlux = Flux.defer(() -> eventFlux//
 				.filter(Objects::nonNull)//
 				.filter(event -> {
-					if (event instanceof SyncDataEvent) {
-						// Ignore duplicate events due to overlap between catchup and events that are currently live-firing.
-						MessageId eventId = ((SyncDataEvent<U, ?>) event).getMessageId();
-						MessageId newLastId = theLastMessageId.accumulateAndGet(eventId, QommonsUtils::max);
-						boolean pass = newLastId == eventId;
-						if (!pass && log.isDebugEnabled())
-							log.debug("Ignoring duplicate data event " + event);
-						return pass;
-					} else if (event instanceof SubscriptionChangeEvent) {
-						SubscriptionChangeEvent<U, ?> subChange = (SubscriptionChangeEvent<U, ?>) event;
-						return streamId.equals(subChange.streamId);
-					} else
-						return false;
+					// Ignore duplicate events due to overlap between catchup and events that are currently live-firing.
+					MessageId eventId = ((SyncDataEvent<U, ?>) event).getMessageId();
+					MessageId newLastId = theLastMessageId.accumulateAndGet(eventId, QommonsUtils::max);
+					boolean pass = newLastId == eventId;
+					if (!pass && log.isDebugEnabled())
+						log.debug("Ignoring duplicate data event " + event);
+					return pass;
 				})//
-				.flatMap(this::processEvent, 1)//
+				.flatMap(this::processDataEvent, 1)//
 				);
 
 			// Compile the handshake payload sequence records lazily inside an iterable block
@@ -423,7 +434,9 @@ public class SyncService<U> {
 				if (!catchUp) {
 					initEventJson.with("lastEventId", lastEventId == null ? null : lastEventId.toString());
 				}
-				initEventJson.with("initSubscriptions", subscriptions.stream().map(SyncDataSubscription::getSubscriptionId).toList());
+				initEventJson.with("initSubscriptions", subscriptions.stream().map(sub -> new StringBuilder()//
+					.append(sub.getDataSource().getEntityTypeName()).append('/').append(sub.getSubscriptionId()).toString())//
+					.toList());
 				List<ServerSentEvent<String>> initialEvents = new ArrayList<>();
 				initialEvents.add(ServerSentEvent.<String> builder()//
 					.id("")//
@@ -442,7 +455,19 @@ public class SyncService<U> {
 				return Flux.fromIterable(initialEvents);
 			});
 			Flux<ServerSentEvent<String>> staticOutputFlux = Flux.concat(initFlux, processedEventFlux);
-			return Flux.merge(staticOutputFlux, theSubscriptionUpdateEventSink.asFlux());
+			Flux<ServerSentEvent<String>> subUpdateOutputFlux = theSubscriptionUpdateEventSink.asFlux()//
+				.publishOn(Schedulers.single()) //
+				.flatMap(this::modifySubscriptions)//
+				.publish()//
+				.autoConnect();
+			return Flux.merge(staticOutputFlux, subUpdateOutputFlux);
+		}
+
+		public void queueSubscriptionChange(SubscriptionChangeEvent<U, ?> event) {
+			if (log.isDebugEnabled())
+				log.debug("\nQueueing " + event.getEntityTypeName() + " " + event);
+			theSubscriptionUpdateEventSink.emitNext(event, //
+				Sinks.EmitFailureHandler.busyLooping(Duration.ofSeconds(2)));
 		}
 
 		private <T> String populateInitialData(Map<String, SyncDataSubscription<U, ?>> typeSubscriptions) {
@@ -475,15 +500,6 @@ public class SyncService<U> {
 			return initialDataJson.toString();
 		}
 
-		private <T> Flux<ServerSentEvent<String>> processEvent(SyncEvent<U, T> event) {
-			if (event instanceof SubscriptionChangeEvent)
-				return modifySubscriptions((SubscriptionChangeEvent<U, T>) event);
-			else if (event instanceof SyncDataEvent)
-				return processDataEvent((SyncDataEvent<U, T>) event);
-			else
-				return Flux.empty(); // Unrecognized event type
-		}
-
 		private <T> Flux<ServerSentEvent<String>> modifySubscriptions(SubscriptionChangeEvent<U, T> event) {
 			if (!streamId.equals(event.streamId))
 				return Flux.empty();
@@ -491,6 +507,9 @@ public class SyncService<U> {
 			String typeName = event.getEntityTypeName();
 			List<Map<String, SyncDataSource.SyncDataFilter<T>>> targetFilters = new ArrayList<>();
 
+			StringBuilder debugStr = log.isDebugEnabled() ? new StringBuilder() : null;
+			if (debugStr != null)
+				debugStr.append("\nProcessing ").append(event);
 			synchronized (theSubscriptions) {
 				Map<String, SyncDataSubscription<U, ?>> typeSubscriptions = theSubscriptions.computeIfAbsent(typeName,
 					_ -> new ConcurrentHashMap<>());
@@ -505,6 +524,11 @@ public class SyncService<U> {
 				if (typeSubscriptions.isEmpty()) {
 					theSubscriptions.remove(typeName);
 					typeSubscriptions = null;
+					if (debugStr != null)
+						debugStr.append("\n\tNo remaining subscriptions");
+				} else if (debugStr != null) {
+					debugStr.append("\n\t").append(typeSubscriptions.size()).append(" Remaining subscriptions: ")
+						.append(typeSubscriptions.values());
 				}
 
 				if (event.withInitialData && typeSubscriptions != null) {
@@ -512,6 +536,8 @@ public class SyncService<U> {
 						targetFilters.add(((SyncDataSubscription<U, T>) sub).getFilters(true));
 				}
 			}
+			if (debugStr != null)
+				log.debug(debugStr.toString());
 
 			List<ServerSentEvent<String>> clientEvents = new ArrayList<>();
 			List<String> subIds = event.subscribe == null ? Collections.emptyList()
@@ -723,7 +749,7 @@ public class SyncService<U> {
 		}
 
 		String getSubscriptionId() {
-			return theDataSource.getEntityTypeName() + '/' + theSubscriptionId;
+			return theSubscriptionId;
 		}
 
 		Map<String, SyncDataSource.SyncDataFilter<T>> getFilters(boolean copy) {
@@ -758,7 +784,7 @@ public class SyncService<U> {
 
 		@Override
 		public String toString() {
-			return theDataSource.getEntityTypeName() + ":" + theFilters + " (" + theSubscriptionId + ")";
+			return theSubscriptionId.substring(0, 8) + ":" + theFilters;
 		}
 	}
 }
