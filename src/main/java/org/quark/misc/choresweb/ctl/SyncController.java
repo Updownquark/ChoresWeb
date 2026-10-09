@@ -19,7 +19,7 @@ public class SyncController extends org.quark.misc.choresweb.sync.SyncController
 
 	@Override
 	protected User getMe(Jwt user) {
-		return theUserService.getUserCreateIfGod(UserService.getUserEmail(user));
+		return theUserService.getUserCreateIfConfigured(UserService.getUserEmail(user));
 	}
 
 	@Override

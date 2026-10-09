@@ -12,7 +12,9 @@ import java.util.function.Predicate;
 import java.util.stream.Stream;
 
 import org.apache.commons.lang3.StringUtils;
+import org.qommons.TimeUtils;
 import org.quark.misc.choresweb.api.ApiAssignment;
+import org.quark.misc.choresweb.api.ApiJob;
 import org.quark.misc.choresweb.api.ApiMembership;
 import org.quark.misc.choresweb.api.ApiOrg;
 import org.quark.misc.choresweb.entities.Assignment;
@@ -143,6 +145,7 @@ public class WorkService {
 			theAssnRepo.save(assn);
 			theNotificationSvc.publishMutation("assignment", true, ApiAssignment.of(assn));
 		}
+		theUserService.updateOrg(me.getOrganization());
 		return assn;
 	}
 
@@ -172,6 +175,7 @@ public class WorkService {
 			return;
 		theAssnRepo.delete(assn);
 		theNotificationSvc.publishMutation("assignment", false, ApiAssignment.of(assn));
+		theUserService.updateOrg(me.getOrganization());
 	}
 
 	@Transactional
@@ -198,19 +202,22 @@ public class WorkService {
 			record.setNotes(assn.getNotes());
 			records.add(record);
 			theNotificationSvc.publishMutation("assignment", false, ApiAssignment.of(assn));
-			if (jobs.add(assn.getJob()))
-				assn.getJob().setLastDone(now);
 		}
 		thePointChangeRepo.saveAll(records);
 		theMembershipRepo.saveAll(members.values());
 		theJobRepo.saveAll(jobs);
 		theAssnRepo.deleteAll(assignments);
-		for (Membership member : members.values())
+		for (Membership member : members.values()) {
+			member.setLastActive(now);
 			theUserService.memberUpdated(member);
-		for (Job job : jobs)
+		}
+		for (Job job : jobs) {
+			job.setLastDone(now);
 			theJobService.jobUpdated(job);
+		}
 		for (PointChangeRecord record : records)
 			theNotificationSvc.publishMutation("history", true, PointChangeRecord.FullPcrDto.of(record));
+		theUserService.updateOrg(me.getOrganization());
 	}
 
 	@Transactional
@@ -223,6 +230,7 @@ public class WorkService {
 		for (Assignment assn : assignments)
 			theNotificationSvc.publishMutation("assignment", false, ApiAssignment.of(assn));
 		theAssnRepo.deleteAll(assignments);
+		theUserService.updateOrg(me.getOrganization());
 	}
 
 	@Transactional
@@ -271,6 +279,7 @@ public class WorkService {
 		theJobRepo.save(job);
 		theJobService.jobUpdated(job);
 		theNotificationSvc.publishMutation("history", true, PointChangeRecord.FullPcrDto.of(record));
+		theUserService.updateOrg(me.getOrganization());
 		return record;
 	}
 
@@ -292,7 +301,6 @@ public class WorkService {
 			member = theMembershipRepo.getMembership(record.getWorker().getId(), record.getOrganization().getId());
 		} catch (EntityNotFoundException e) {
 			thePointChangeRepo.delete(record);
-			;
 			return;
 		}
 		member.setPoints(member.getPoints() - record.getPointChange());
@@ -300,6 +308,48 @@ public class WorkService {
 		theUserService.memberUpdated(member);
 		thePointChangeRepo.delete(record);
 		theNotificationSvc.publishMutation("history", false, PointChangeRecord.FullPcrDto.of(record));
+		theUserService.updateOrg(me.getOrganization());
+
+		Membership worker = theMembershipRepo.getByMemberAndOrganizationId(record.getWorker(), record.getOrganization().getId());
+		if (worker != null && (worker.getLastActive() == null //
+			|| Math.abs(TimeUtils.between(worker.getLastActive(), record.getTime()).getSeconds()) <= 1)) {
+			Instant lastActive = thePointChangeRepo.getLastActive(me.getOrganization(), worker.getId());
+			boolean updated = false;
+			if (lastActive == null && worker.getLastActive() != null) {
+				updated = true;
+				worker.setLastActive(lastActive);
+			} else if (lastActive != null
+				&& (worker.getLastActive() == null || Math.abs(TimeUtils.between(lastActive, worker.getLastActive()).getSeconds()) > 10)) {
+				updated = true;
+				worker.setLastActive(lastActive);
+			}
+			if (updated) {
+				theMembershipRepo.save(worker);
+				theNotificationSvc.publishMutation("membership", true, ApiMembership.of(worker));
+			}
+			record.getWorker().setLastActive(lastActive);
+		}
+
+		Job job = record.getChangeType() == PointChangeRecord.PointChangeType.Job
+			? theJobRepo.findById(record.getChangeSourceId()).orElse(null) : null;
+		if (job != null && (job.getLastDone() == null //
+			|| Math.abs(TimeUtils.between(job.getLastDone(), record.getTime()).getSeconds()) <= 1)) {
+			Instant lastActive = thePointChangeRepo.getLastDone(me.getOrganization(), job.getId());
+			boolean updated = false;
+			if (lastActive == null && job.getLastDone() != null) {
+				updated = true;
+				job.setLastDone(lastActive);
+			} else if (lastActive != null
+				&& (job.getLastDone() == null || Math.abs(TimeUtils.between(lastActive, job.getLastDone()).getSeconds()) > 10)) {
+				updated = true;
+				job.setLastDone(lastActive);
+			}
+			if (updated) {
+				theJobRepo.save(job);
+				theNotificationSvc.publishMutation("job", true, ApiJob.of(job));
+			}
+			record.getWorker().setLastActive(lastActive);
+		}
 	}
 
 	public void assignmentUpdated(Assignment assn) {

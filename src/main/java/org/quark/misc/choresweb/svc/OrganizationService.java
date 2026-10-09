@@ -9,6 +9,7 @@ import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Set;
 
+import org.qommons.TimeUtils;
 import org.quark.misc.choresweb.api.ApiMembership;
 import org.quark.misc.choresweb.api.ApiOrg;
 import org.quark.misc.choresweb.api.ApiUser;
@@ -182,10 +183,15 @@ public class OrganizationService {
 		User user = theUserSvc.getMe(authUser);
 		if (user == null)
 			throw new NoSuchElementException("Organization does not exist or you are not a member");
-		theUserSvc.userActive(user);
 		Membership membership = theMembershipRepo.getMembership(user.getId(), orgId);
 		if (membership == null)
 			throw new NoSuchElementException("Organization does not exist or you are not a member");
+		Instant now = Instant.now();
+		if (membership.getLastActive() == null || TimeUtils.between(membership.getLastActive(), now).getSeconds() >= 10) {
+			membership.setLastActive(now);
+			theMembershipRepo.save(membership);
+			theNotificationSvc.publishMutation("membership", true, ApiMembership.of(membership));
+		}
 		return membership;
 	}
 
@@ -194,7 +200,6 @@ public class OrganizationService {
 		User user = theUserSvc.getUser(userEmail);
 		if (user == null)
 			return null;
-		theUserSvc.userActive(user);
 		Membership membership = theMembershipRepo.getMembership(user.getId(), id);
 		if (membership == null)
 			throw new NoSuchElementException("Organization does not exist or you are not a member");
@@ -208,15 +213,14 @@ public class OrganizationService {
 
 	@Transactional
 	public Membership addOrganization(String userEmail) {
-		User user = theUserSvc.getUserCreateIfGod(userEmail);
+		User user = theUserSvc.getUserCreateIfConfigured(userEmail);
 		if (user == null || !user.isGlobalAdmin())
 			throw new UnsupportedOperationException("You do not have permission to create organizations");
 		String newName = ChoresWebUtils.getNewName(theOrgRepo.findAll(), 200, "Org");
 		Organization org = new Organization(newName);
 		theOrgRepo.save(org);
-		theUserSvc.userActive(user);
 		Membership membership = new Membership(org, user);
-		membership.setName(userEmail);
+		membership.setName(user.getName());
 		membership.setManager(true);
 		membership.setLastActive(Instant.now());
 		theMembershipRepo.save(membership);

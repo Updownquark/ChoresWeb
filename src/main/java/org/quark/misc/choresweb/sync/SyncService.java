@@ -148,7 +148,8 @@ public class SyncService<U> {
 	private final Map<String, SyncDataSource<U, ?>> theDataSources;
 	private final Map<String, ClientEventStream> theClientStreams;
 
-	private final Sinks.Many<SyncDataEvent<U, ?>> theLiveSink = Sinks.many().multicast().onBackpressureBuffer();
+	private final Sinks.Many<SyncDataEvent<U, ?>> theLiveSink = Sinks.many().unicast().onBackpressureBuffer();
+	private final Flux<SyncDataEvent<U, ?>> theSharedLiveFlux = theLiveSink.asFlux().share();
 
 	private final ConcurrentHashMap<String, Boolean> theLoggedMissingEntityTypes;
 
@@ -160,9 +161,7 @@ public class SyncService<U> {
 
 		theNotificationService.mutations()//
 		.publishOn(Schedulers.boundedElastic())//
-		.concatMap(event -> Mono.fromCallable(() -> parseEvent(event))//
-			.subscribeOn(Schedulers.parallel()) // Run heavy JSON parses in parallel
-			)//
+			.concatMap(event -> Mono.fromCallable(() -> parseEvent(event)))//
 		.filter(Objects::nonNull)//
 		// .doOnNext(theLiveSink::tryEmitNext)//
 		.doOnNext(event -> {
@@ -190,7 +189,7 @@ public class SyncService<U> {
 			throw new IllegalArgumentException("Data source for entity type " + entityTypeName + " is not of the correct type ("
 				+ dataSource.getEntityType().getName() + ")");
 		final String realEntityType = dataSource.getEntityTypeName();
-		var sub = theLiveSink.asFlux()//
+		var sub = theSharedLiveFlux//
 			.publishOn(Schedulers.boundedElastic())//
 			.doOnNext(event -> {
 				if (event instanceof SyncDataEvent && realEntityType == event.getEntityTypeName()) {
@@ -226,7 +225,7 @@ public class SyncService<U> {
 
 		// 1. Create a dynamic processor sink specifically to listen for this individual client's disconnection signal
 		Sinks.Empty<Void> disconnectSink = Sinks.empty();
-		Flux<SyncDataEvent<U, ?>> liveFlux = theLiveSink.asFlux()//
+		Flux<SyncDataEvent<U, ?>> liveFlux = theSharedLiveFlux//
 			.takeUntilOther(disconnectSink.asMono());
 
 		MessageId lastMessageId = lastEventId == null ? null : new MessageId(lastEventId);
@@ -528,7 +527,7 @@ public class SyncService<U> {
 						debugStr.append("\n\tNo remaining subscriptions");
 				} else if (debugStr != null) {
 					debugStr.append("\n\t").append(typeSubscriptions.size()).append(" Remaining subscriptions: ")
-						.append(typeSubscriptions.values());
+					.append(typeSubscriptions.values());
 				}
 
 				if (event.withInitialData && typeSubscriptions != null) {

@@ -122,6 +122,7 @@ public class PointResourceService {
 			configure.accept(resource);
 		theResourceRepo.save(resource);
 		theNotificationSvc.publishMutation("resource", true, ApiPointResource.of(resource));
+		theUserService.updateOrg(member.getOrganization());
 		return resource;
 	}
 
@@ -140,6 +141,7 @@ public class PointResourceService {
 		if (modify.test(resource)) {
 			theResourceRepo.save(resource);
 			theNotificationSvc.publishMutation("resource", true, ApiPointResource.of(resource));
+			theUserService.updateOrg(member.getOrganization());
 		}
 		return resource;
 	}
@@ -156,6 +158,7 @@ public class PointResourceService {
 			throw new UnsupportedOperationException("You do not have permission to remove resources from this organization");
 		theResourceRepo.delete(rsrc);
 		theNotificationSvc.publishMutation("resource", false, ApiPointResource.of(rsrc));
+		theUserService.updateOrg(me.getOrganization());
 	}
 
 	@Transactional
@@ -180,6 +183,7 @@ public class PointResourceService {
 		}
 		theUserService.memberUpdated(worker);
 		theHistoryService.historyAdded(history);
+		theUserService.updateOrg(me.getOrganization());
 	}
 
 	public void resourceUpdated(PointResource rsrc) {

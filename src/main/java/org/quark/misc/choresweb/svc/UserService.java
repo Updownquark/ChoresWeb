@@ -17,11 +17,15 @@ import org.qommons.QommonsUtils;
 import org.qommons.TimeUtils;
 import org.qommons.io.NativeFileSource;
 import org.quark.misc.choresweb.api.ApiMembership;
+import org.quark.misc.choresweb.api.ApiOrg;
 import org.quark.misc.choresweb.api.ApiUser;
+import org.quark.misc.choresweb.entities.ApplicationInfo;
 import org.quark.misc.choresweb.entities.Membership;
+import org.quark.misc.choresweb.entities.Organization;
 import org.quark.misc.choresweb.entities.User;
 import org.quark.misc.choresweb.repos.AssignmentRepo;
 import org.quark.misc.choresweb.repos.MembershipRepo;
+import org.quark.misc.choresweb.repos.OrgsRepo;
 import org.quark.misc.choresweb.repos.PointChangeRecordRepo;
 import org.quark.misc.choresweb.repos.UserRepo;
 import org.quark.misc.choresweb.sync.EntityMutationNotificationService;
@@ -45,18 +49,23 @@ public class UserService {
 	private final Set<String> theGodList;
 
 	private final UserRepo theUserRepo;
+	private final OrgsRepo theOrgsRepo;
 	private final MembershipRepo theMembershipRepo;
 	private final AssignmentRepo theAssnRepo;
 	private final PointChangeRecordRepo thePointChangeRepo;
 	private final EntityMutationNotificationService theNotificationSvc;
+	private final ApplicationInfo theAppInfo;
 
-	public UserService(UserRepo userRepo, MembershipRepo membershipRepo, AssignmentRepo assnRepo, PointChangeRecordRepo pointChangeRepo,
-		EntityMutationNotificationService notificationSvc, SyncService<User> syncService, ObjectMapper objectMapper) {
+	public UserService(UserRepo userRepo, OrgsRepo orgsRepo, MembershipRepo membershipRepo, AssignmentRepo assnRepo,
+		PointChangeRecordRepo pointChangeRepo, EntityMutationNotificationService notificationSvc, SyncService<User> syncService,
+		ObjectMapper objectMapper, ApplicationInfoService appInfo) {
 		theUserRepo = userRepo;
+		theOrgsRepo = orgsRepo;
 		theMembershipRepo = membershipRepo;
 		theAssnRepo = assnRepo;
 		thePointChangeRepo = pointChangeRepo;
 		theNotificationSvc = notificationSvc;
+		theAppInfo = appInfo.getApplicationInfo();
 
 		theGodList = new HashSet<>();
 
@@ -105,15 +114,6 @@ public class UserService {
 		}
 	}
 
-	@Transactional
-	public void userActive(User user) {
-		Instant now = Instant.now();
-		if (user.getLastActive() == null || TimeUtils.between(user.getLastActive(), now).getSeconds() > 30) {
-			user.setLastActive(now);
-			theUserRepo.save(user);
-		}
-	}
-
 	@Transactional(readOnly = true)
 	public User getUser(String email) {
 		User found = theUserRepo.getByEmail(email);
@@ -125,7 +125,16 @@ public class UserService {
 		String email = getUserEmail(user);
 		if (email == null)
 			return null;
-		return getUserCreateIfGod(email);
+		User dbUser = getUserCreateIfConfigured(email);
+		if (dbUser != null) {
+			Instant now = Instant.now();
+			if (dbUser.getLastActive() == null || TimeUtils.between(dbUser.getLastActive(), now).getSeconds() >= 10) {
+				dbUser.setLastActive(now);
+				theUserRepo.save(dbUser);
+				theNotificationSvc.publishMutation("user", true, ApiUser.of(dbUser));
+			}
+		}
+		return dbUser;
 	}
 
 	public static String getUserEmail(Jwt user) {
@@ -136,23 +145,36 @@ public class UserService {
 	}
 
 	@Transactional
-	public User getUserCreateIfGod(String email) {
+	public User getUserCreateIfConfigured(String email) {
+		if (theAppInfo.isOpenToWorld())
+			return getOrCreateUser(email);
+
 		User found = theUserRepo.getByEmail(email);
-		if (found == null && theGodList.contains(email.toLowerCase())) {
-			found = getOrCreateUser(email);
-			found.setGod(true);
-			found.setGlobalAdmin(true);
-			theUserRepo.save(found);
-		}
+		if (found == null && theGodList.contains(email.toLowerCase()))
+			return getOrCreateUser(email);
 		return found;
 	}
 
 	@Transactional
 	public User getOrCreateUser(String email) {
-		User found = theUserRepo.getByEmail(email);
-		if (found == null) {
-			found = new User(email);
-			theUserRepo.save(found);
+		User found = null;
+		for (int tries = 0; tries < 5; tries++) {
+			found = theUserRepo.getByEmail(email);
+			if (found == null) {
+				found = new User(email);
+				int at = email.indexOf('@');
+				found.setName(at > 0 ? email.substring(0, at) : email);
+				boolean god = theGodList.contains(email.toLowerCase());
+				found.setGod(god);
+				found.setGlobalAdmin(god || theAppInfo.isOpenToWorld());
+
+				try {
+					theUserRepo.save(found);
+				} catch (RuntimeException e) {
+					// Inserted by another call
+				}
+				theNotificationSvc.publishMutation("user", true, ApiUser.of(found));
+			}
 		}
 		return found;
 	}
@@ -160,7 +182,7 @@ public class UserService {
 	@Transactional
 	public User modifyUser(Jwt me, ModifyUserCommand modification) {
 		String myEmail = getUserEmail(me);
-		User self = getUserCreateIfGod(myEmail);
+		User self = getUserCreateIfConfigured(myEmail);
 		if (self == null)
 			throw new UnsupportedOperationException("You are not registered as a user on this application");
 		boolean isSelf = self.getId() == modification.id();
@@ -180,8 +202,11 @@ public class UserService {
 		}
 
 		// Permissions checks done. Now do the modification.
-		if (modification.email() != null)
+		if (modification.email() != null) {
+			if (!self.isGod())
+				throw new UnsupportedOperationException("Only God can change user emails");
 			user.setEmail(modification.email());
+		}
 		if (modification.god() != null) {
 			if (!modification.god() && theGodList.contains(user.getEmail().toLowerCase()))
 				throw new UnsupportedOperationException("This user is God eternal");
@@ -228,10 +253,7 @@ public class UserService {
 			return current;
 
 		Membership membership = new Membership(me.getOrganization(), user);
-		String name = user.getEmail();
-		int at = name.indexOf('@');
-		if (at > 0)
-			name = name.substring(0, at);
+		String name = user.getName();
 		if (name.length() > 100)
 			name = name.substring(0, 100);
 		name = ChoresWebUtils.getNewName(theMembershipRepo.getMembership(me.getOrganization()), 100, name);
@@ -243,6 +265,7 @@ public class UserService {
 		theMembershipRepo.saveAll(Arrays.asList(membership, me));
 		theNotificationSvc.publishMutation("membership", true, ApiMembership.of(me));
 		theNotificationSvc.publishMutation("membership", true, ApiMembership.of(membership));
+		updateOrg(me.getOrganization());
 		return membership;
 	}
 
@@ -276,6 +299,7 @@ public class UserService {
 			theMembershipRepo.saveAll(Arrays.asList(member, me));
 			theNotificationSvc.publishMutation("membership", true, ApiMembership.of(me));
 			theNotificationSvc.publishMutation("membership", true, ApiMembership.of(member));
+			updateOrg(me.getOrganization());
 		}
 		return member;
 	}
@@ -296,6 +320,19 @@ public class UserService {
 		theMembershipRepo.save(me);
 		theNotificationSvc.publishMutation("membership", true, ApiMembership.of(me));
 		theNotificationSvc.publishMutation("membership", false, ApiMembership.of(target));
+		updateOrg(me.getOrganization());
+	}
+
+	public void updateOrg(Organization org) {
+		Instant now = Instant.now();
+		// This one doesn't happen as often because it involves a query
+		if (org.getLastActive() == null || TimeUtils.between(org.getLastActive(), now).getSeconds() > 300) { // 5 minutes
+			org.setLastActive(now);
+			theOrgsRepo.save(org);
+			theNotificationSvc.publishMutation("organization", true, ApiOrg.of(org));
+			for (Membership member : theMembershipRepo.getMembership(org))
+				theNotificationSvc.publishMutation("membership", true, ApiMembership.of(member));
+		}
 	}
 
 	public void memberUpdated(Membership member) {

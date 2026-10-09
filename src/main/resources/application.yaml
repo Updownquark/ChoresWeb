@@ -25,11 +25,11 @@ spring:
     open-in-view: false
     hibernate:
       ddl-auto: validate
-    Xproperties:
+    properties:
       hibernate:
         cache:
-          use_second_level_cache: true
-          use_query_cache: true
+          use_second_level_cache: false
+          use_query_cache: false
     show-sql: false
   liquibase:
     enabled: true

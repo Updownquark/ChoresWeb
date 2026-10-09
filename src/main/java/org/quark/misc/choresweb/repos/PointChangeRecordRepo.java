@@ -1,5 +1,6 @@
 package org.quark.misc.choresweb.repos;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.stream.Stream;
 
@@ -93,6 +94,24 @@ public interface PointChangeRecordRepo extends JpaRepository<PointChangeRecord, 
 	@Query("FROM PointChangeRecord WHERE organization=:org")
 	@QueryHints(@QueryHint(name = "jakarta.persistence.fetchSize", value = "500"))
 	Stream<PointChangeRecord> getOrgHistory(@Param("org") Organization org);
+
+	@Query("SELECT time FROM PointChangeRecord pcr"//
+		+ " WHERE pcr.organization = :org"//
+		+ " AND pcr.worker.id = :workerId" //
+		+ " AND pcr.changeSourceId = :jobId" //
+		+ " ORDER BY pcr.time DESC LIMIT 1")
+	Instant getLastActive(@Param("org") Organization org, @Param("workerId") long workerId);
+
+	default Instant getLastDone(Job job) {
+		return getLastDone(job.getOrganization(), job.getId());
+	}
+
+	@Query("SELECT time FROM PointChangeRecord pcr"//
+		+ " WHERE pcr.organization = :org"//
+		+ " AND pcr.changeType = org.quark.misc.choresweb.entities.PointChangeRecord$PointChangeType.Job" //
+		+ " AND pcr.changeSourceId = :jobId" //
+		+ " ORDER BY pcr.time DESC LIMIT 1")
+	Instant getLastDone(@Param("org") Organization org, @Param("jobId") long jobId);
 
 	@Modifying
 	default void deleteForMember(Membership member) {

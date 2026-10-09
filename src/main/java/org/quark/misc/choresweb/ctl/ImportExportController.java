@@ -47,6 +47,6 @@ public class ImportExportController {
 		Membership membership = theMembershipSvc.getMe(user, orgId);
 		if (!membership.isManager())
 			throw new UnsupportedOperationException("You do not have permission to import backup data for this organization");
-		theBackupService.importData(membership.getOrganization(), () -> file.getResource().getInputStream());
+		theBackupService.importData(membership, () -> file.getResource().getInputStream());
 	}
 }

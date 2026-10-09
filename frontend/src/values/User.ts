@@ -1,6 +1,7 @@
 interface User {
 	readonly id: number;
 	readonly email: string;
+	readonly name: string;
 	readonly god: boolean;
 	readonly globalAdmin: boolean;
 }

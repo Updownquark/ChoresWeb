@@ -1,5 +1,6 @@
 package org.quark.misc.choresweb.sync;
 
+import java.time.Duration;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
@@ -17,7 +18,7 @@ import reactor.core.publisher.Sinks;
 import tools.jackson.databind.ObjectMapper;
 
 public abstract class EntityMutationNotificationService {
-	public interface EntitySerializer<E>{
+	public interface EntitySerializer<E> {
 		/**
 		 * @param entity The entity to serialize
 		 * @param idOnly Whether to serialize only the ID fields of the entity
@@ -68,7 +69,10 @@ public abstract class EntityMutationNotificationService {
 	private final ApplicationEventPublisher theInternalEventPublisher;
 
 	private final Map<String, EntitySerializerHolder<?>> theSerializers = new ConcurrentHashMap<>();
-	private final Sinks.Many<EntityMutationEvent> theLocalSink = Sinks.many().multicast().onBackpressureBuffer();
+
+	private final Sinks.Many<EntityMutationEvent> theLocalSink = Sinks.many().unicast().onBackpressureBuffer();
+	// share() allows multiple subscribers
+	private final Flux<EntityMutationEvent> theSharedLocalFlux = theLocalSink.asFlux().share();
 
 	protected EntityMutationNotificationService(ApplicationEventPublisher internalEventPublisher) {
 		theInternalEventPublisher = internalEventPublisher;
@@ -92,7 +96,7 @@ public abstract class EntityMutationNotificationService {
 	}
 
 	public Flux<EntityMutationEvent> mutations() {
-		return theLocalSink.asFlux();
+		return theSharedLocalFlux;
 	}
 
 	public abstract Mono<Optional<MessageId>> getLatestMutation();
@@ -113,6 +117,6 @@ public abstract class EntityMutationNotificationService {
 	protected abstract Mono<MessageId> publishGlobalMutation(String entityType, boolean present, String entityJson);
 
 	protected void publishLocalMutation(EntityMutationEvent event) {
-		theLocalSink.tryEmitNext(event);
+		theLocalSink.emitNext(event, Sinks.EmitFailureHandler.busyLooping(Duration.ofSeconds(5)));
 	}
 }

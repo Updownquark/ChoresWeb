@@ -9,6 +9,8 @@ export interface EntityChangeEvent<E>{
 
 export type EntityChangeListener<E>=(events: EntityChangeEvent<E>)=>void;
 
+type Status = "disconnected" | "loading" | "connected" | "error";
+
 abstract class EntitySetService<E>{
 	private readonly _tableName: string;
 	private readonly _entities: E[]=[];
@@ -16,10 +18,15 @@ abstract class EntitySetService<E>{
 	private _immutableEntities: readonly E[]=[];
 	private _filters?: object;
 	private _changeListener: (()=>void) | null = null;
+	private _theStatus: Status = "disconnected";
 	private readonly _listeners: EntityChangeListener<E> [] = [];
 
 	constructor(tableName: string){
 		this._tableName=tableName;
+	}
+
+	public get status(): Status {
+		return this._theStatus;
 	}
 
 	public async init(filters: object){
@@ -29,9 +36,12 @@ abstract class EntitySetService<E>{
 		this.disconnect();
 
 		this._filters=filters;
+		this._theStatus="loading";
+		console.log("Initializing "+this._tableName);
 		this._changeListener = syncService.subscribe<E>(this._tableName, filters, (event) => {
 			switch (event.type) {
 				case "reset":
+					this._theStatus="connected";
 					this.handleReset(event.entities);
 					break;
 
@@ -46,6 +56,8 @@ abstract class EntitySetService<E>{
 				case "subscriptionRevoked":
 					console.warn(`Local cache invalidated for ${this._tableName}. Subscription revoked by server security rules.`);
 					this.clear();
+					this._changeListener=null;
+					this._theStatus="disconnected";
 					break;
 
 				default:
@@ -109,7 +121,6 @@ abstract class EntitySetService<E>{
 		} else {
 			return (id1 as string).localeCompare(id2 as string);
 		}
-		return comp;
 	}
 
 	private handleReset(entities: E []){
@@ -138,13 +149,14 @@ abstract class EntitySetService<E>{
 			removed.push(entity);
 		}
 
-		if(added.length || removed.length || changed.length){
-			this._immutableEntities=[...this._entities];
-			this.fireListeners({added: added, removed: removed, changed: changed});
-		}
+		// Fire the event regardless of whether anything actually changed
+		// since the connection status may have changed
+		this._immutableEntities=[...this._entities];
+		this.fireListeners({added: added, removed: removed, changed: changed});
 	}
 
 	public disconnect(){
+		this._theStatus="disconnected";
 		this.clear();
 		this._filters=undefined;
 		if(this._changeListener){

@@ -6,12 +6,35 @@
                       http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.1.xsd">
 
 	<changeSet id="1" author="Updownquark">
+		<createTable tableName="application_info">
+			<column name="singleton_id" type="int" defaultValueNumeric="1">
+				<constraints nullable="false" primaryKey="true" />
+			</column>
+			<column name="open_to_world" type="boolean">
+				<constraints nullable="false" />
+			</column>
+		</createTable>
+		<!-- Enforce singleton status on the application info table -->
+		<sql splitStatements="false">
+            ALTER TABLE application_info 
+            ADD CONSTRAINT chk_app_info_singleton 
+            CHECK (singleton_id = 1);
+        </sql>
+        <!-- Populate the single value of the application info table -->
+        <insert tableName="application_info">
+            <column name="singleton_id" valueNumeric="1"/>
+            <column name="open_to_world" value="false"/>
+        </insert>
+		
 		<createTable tableName="app_user">
 			<column name="id" type="BIGINT" autoIncrement="true">
 				<constraints primaryKey="true" nullable="false"/>
 			</column>
 			<column name="email" type="VARCHAR(100)">
 				<constraints nullable="false" unique="true" />
+			</column>
+			<column name="name" type="VARCHAR(100)">
+				<constraints nullable="false" />
 			</column>
 			<column name="god" type="BOOLEAN">
 				<constraints nullable="false"/>

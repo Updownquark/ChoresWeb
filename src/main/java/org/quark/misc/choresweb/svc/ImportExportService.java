@@ -183,7 +183,11 @@ public class ImportExportService {
 	}
 
 	@Transactional
-	public void importData(Organization org, ExSupplier<InputStream, IOException> file) {
+	public void importData(Membership me, ExSupplier<InputStream, IOException> file) {
+		Organization org = me.getOrganization();
+		me.setLastActive(Instant.now());
+		theMembershipRepo.save(me);
+		theUserSvc.memberUpdated(me);
 		InMemoryFileSystem baseFS = new InMemoryFileSystem();
 		BetterFile zipFile = baseFS.at("/file.zip");
 		try {
@@ -234,11 +238,8 @@ public class ImportExportService {
 					jobs.put(line.getValue1(), job);
 				}
 			}
-			if (!newJobs.isEmpty()) {
+			if (!newJobs.isEmpty())
 				theJobRepo.saveAll(newJobs);
-				for (Job job : newJobs)
-					theJobService.jobUpdated(job);
-			}
 			log.info("\t\t" + newJobs.size() + " added, " + preExisting + " pre-existing");
 
 			log.info("\tImporting workers...");
@@ -279,11 +280,8 @@ public class ImportExportService {
 					workers.put(line.getValue1(), membership);
 				}
 			}
-			if (!newWorkers.isEmpty()) {
+			if (!newWorkers.isEmpty())
 				theMembershipRepo.saveAll(newWorkers);
-				for (Membership worker : newWorkers)
-					theUserSvc.memberUpdated(worker);
-			}
 			log.info("\t\t" + newWorkers.size() + " added, " + preExisting + " pre-existing");
 
 			log.info("\tImporting Point Resources...");
@@ -336,6 +334,8 @@ public class ImportExportService {
 			int addedPCRs = 0;
 			List<PointChangeRecord> newPCRs = new ArrayList<>();
 			log.info("\t\tParsing data...");
+			Set<Job> updatedJobs = new HashSet<>();
+			Set<Membership> updatedWorkers = new HashSet<>();
 			try (CsvParser historyFile = new CsvParser(new InputStreamReader(archive.at("PointHistory.csv").read(), StandardCharsets.UTF_8),
 				',', 0)) {
 				var typedParser = historyFile.parseTyped()//
@@ -356,6 +356,10 @@ public class ImportExportService {
 						continue;
 					}
 					Instant time = line.getValue2();
+					if (worker.getLastActive() == null || time.compareTo(worker.getLastActive()) > 0) {
+						worker.setLastActive(time);
+						updatedWorkers.add(worker);
+					}
 					PointChangeRecord.PointChangeType changeType = pcts.get(line.getValue3().toLowerCase());
 					if (changeType == null) {
 						if (unrecognizedPCTs.add(line.getValue3().toLowerCase()))
@@ -366,9 +370,13 @@ public class ImportExportService {
 					switch (changeType) {
 					case Job:
 						Job job = jobs.get(line.get(3, Long.class));
-						if (job != null)
+						if (job != null) {
 							changeSourceId = job.getId();
-						else
+							if (job.getLastDone() == null || time.compareTo(job.getLastDone()) > 0) {
+								job.setLastDone(time);
+								updatedJobs.add(job);
+							}
+						} else
 							changeSourceId = -1;
 						break;
 					case Resource:
@@ -399,6 +407,12 @@ public class ImportExportService {
 					}
 				}
 			}
+			theJobRepo.saveAll(updatedJobs);
+			theMembershipRepo.saveAll(updatedWorkers);
+			for (Job job : newJobs)
+				theJobService.jobUpdated(job);
+			for (Membership worker : newWorkers)
+				theUserSvc.memberUpdated(worker);
 			if (!newPCRs.isEmpty()) {
 				theHistorySvc.historyAdded(newPCRs);
 				newPCRs.clear();

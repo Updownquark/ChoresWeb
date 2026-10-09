@@ -3,7 +3,10 @@ package org.quark.misc.choresweb.ctl;
 import java.util.List;
 
 import org.quark.misc.choresweb.api.ApiMembership;
+import org.quark.misc.choresweb.api.ApiUser;
 import org.quark.misc.choresweb.entities.Membership;
+import org.quark.misc.choresweb.entities.User;
+import org.quark.misc.choresweb.svc.ModifyUserCommand;
 import org.quark.misc.choresweb.svc.ModifyWorkerCommand;
 import org.quark.misc.choresweb.svc.OrganizationService;
 import org.quark.misc.choresweb.svc.UserService;
@@ -61,6 +64,12 @@ public class UsersController {
 	public void removeMember(@AuthenticationPrincipal Jwt user, @RequestBody RemoveMember command) {
 		Membership me = theMembershipSvc.getMe(user, command.orgId());
 		theUserSvc.removeWorker(me, command.userId());
+	}
+
+	@PostMapping
+	public ApiUser modifyUser(@AuthenticationPrincipal Jwt user, @RequestBody ModifyUserCommand command) {
+		User modUser = theUserSvc.modifyUser(user, command);
+		return ApiUser.of(modUser);
 	}
 
 	public record AddMember(long orgId, @JsonAlias("user-email") String userEmail) {}

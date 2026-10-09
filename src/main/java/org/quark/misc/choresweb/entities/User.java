@@ -30,6 +30,11 @@ public class User {
 	@Setter
 	private String email;
 
+	@Column(length = 100, nullable = false)
+	@Getter
+	@Setter
+	private String name;
+
 	@Getter
 	@Setter
 	private boolean god;

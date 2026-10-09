@@ -3,8 +3,8 @@ import User from "./User";
 
 interface Membership {
 	readonly id: number;
-	readonly member: User | null;
-	readonly organization: Organization | null;
+	readonly member: User;
+	readonly organization: Organization;
 	readonly name: string;
 	readonly manager: boolean;
 	readonly worker: boolean;

@@ -28,12 +28,6 @@ import Footer from "./components/util/Footer";
 
 const appName = "Chore Champ";
 
-const LoadingStage = {
-	Me: "Me",
-	Orgs: "Orgs",
-} as const;
-type LoadingStage = (typeof LoadingStage)[keyof typeof LoadingStage];
-
 let _me: User | null = null;
 let _org: Membership | null = null;
 export function me(): User | null {
@@ -48,7 +42,6 @@ const getOrgsSnapshot = orgsService.getAll.bind(orgsService);
 
 function ChoreChampApp() {
 	const [me, setMe] = useState<User | null>(null);
-	const [loading, setLoading] = useState<LoadingStage | null>(null);
 	const orgs = useSyncExternalStore(subscribeToOrgs, getOrgsSnapshot);
 	const [org, _setOrg] = useState<Membership | null>(null);
 
@@ -57,8 +50,8 @@ function ChoreChampApp() {
 	}, []);
 
 	useEffect(() => {
-		if (org) return;
-		if (!_me?.globalAdmin && orgs.length == 1) {
+		if (org) {
+		} else if (!_me?.globalAdmin && orgs.length == 1) {
 			setOrg(orgs[0]);
 		} else {
 			const orgIdStr = sessionStorage.getItem("selectedOrg");
@@ -72,7 +65,6 @@ function ChoreChampApp() {
 				}
 			}
 		}
-		if (loading) setLoading(null);
 	}, [orgs]);
 
 	const setOrg = (org: Membership | null) => {
@@ -103,26 +95,19 @@ function ChoreChampApp() {
 
 	// 6. Test the secure API instance
 	const fetchMe = async () => {
-		setLoading(LoadingStage.Me);
-		let targetLoadingStage: LoadingStage | null = null;
 		try {
 			const response = await api.get<User>("/api/me");
 			_me = response.data;
 			setMe(_me);
-			if (_me.id != -1) {
-				targetLoadingStage = LoadingStage.Orgs;
+			if (_me.id != -1)
 				fetchOrgs();
-			}
 		} catch (error) {
 			console.error("API Error:", error);
 			setMe(null);
-		} finally {
-			setLoading(targetLoadingStage);
 		}
 	};
 
 	const fetchOrgs = async () => {
-		setLoading(LoadingStage.Orgs);
 		try {
 			orgsService.init({ member: _me!.id });
 		} catch (error) {
@@ -130,19 +115,6 @@ function ChoreChampApp() {
 			setMe(null);
 		}
 	};
-
-	let loadingStatusMessage: string;
-	switch (loading) {
-		case LoadingStage.Me:
-			loadingStatusMessage = "Your information is being loaded";
-			break;
-		case LoadingStage.Orgs:
-			loadingStatusMessage = "Loading your organization(s)";
-			break;
-		default:
-			loadingStatusMessage = "Unrecognized loading status: " + loading;
-			break;
-	}
 
 	const exitOrg = () => setOrg(null);
 
@@ -154,26 +126,28 @@ function ChoreChampApp() {
 		flexDirection: "column",
 		alignItems: "center"
 	};
-	if (loading) {
+	if (orgsService.status=="loading") {
 		return (
 			<Container sx={{...layoutStyles}}>
 				<Banner
 					title="Loading..."
 					org={org}
 					exitOrg={exitOrg}
+					api={api}
 				/>
-				{loadingStatusMessage}
+				Loading Your Organizations
 			</Container>
 		);
 	} else if (!me) {
 		return (
 			<Container sx={{...layoutStyles}}>
 				<Banner
-					title="Internal Server Error"
+					title="Chore Champ Unavailable"
 					org={org}
 					exitOrg={exitOrg}
+					api={api}
 				/>
-				An error has occurred on the server and the application cannot be accessed
+				The application is not accessible
 			</Container>
 		);
 	} else if (me.id == -1) {
@@ -183,6 +157,7 @@ function ChoreChampApp() {
 					title="Unrecognized User"
 					org={org}
 					exitOrg={exitOrg}
+					api={api}
 				/>
 				You need to be added to an organization by an organization admin to access this application.
 				<Footer />
@@ -195,6 +170,7 @@ function ChoreChampApp() {
 					title="Chore Champ"
 					org={org}
 					exitOrg={exitOrg}
+					api={api}
 				/>
 				<OrganizationUI
 					org={org}
@@ -210,6 +186,7 @@ function ChoreChampApp() {
 					title="Select the Organization to View"
 					org={org}
 					exitOrg={exitOrg}
+					api={api}
 				/>
 				{orgs ? (
 					<OrganizationList
@@ -235,6 +212,7 @@ function ChoreChampApp() {
 					title="No Organization Memberships"
 					org={org}
 					exitOrg={exitOrg}
+					api={api}
 				/>
 				You need to be added to an organization by an organization admin to access this application.
 				<Footer />
@@ -247,6 +225,7 @@ function ChoreChampApp() {
 					title="Select the Organization to View"
 					org={org}
 					exitOrg={exitOrg}
+					api={api}
 				/>
 				<OrganizationList
 					orgs={orgs}

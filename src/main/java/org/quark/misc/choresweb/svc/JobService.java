@@ -27,12 +27,14 @@ import tools.jackson.databind.ObjectMapper;
 @Service
 public class JobService {
 	private final JobRepo theJobRepo;
+	private final UserService theUserService;
 	private final OrganizationService theOrgService;
 	private final EntityMutationNotificationService theNotificationSvc;
 
-	JobService(JobRepo jobRepo, OrganizationService orgService, EntityMutationNotificationService notificationSvc,
+	JobService(JobRepo jobRepo, UserService userService, OrganizationService orgService, EntityMutationNotificationService notificationSvc,
 		SyncService<User> syncService, ObjectMapper objectMapper) {
 		theJobRepo = jobRepo;
+		theUserService = userService;
 		theOrgService = orgService;
 		theNotificationSvc = notificationSvc;
 
@@ -115,6 +117,7 @@ public class JobService {
 			configure.accept(job);
 		theJobRepo.save(job);
 		theNotificationSvc.publishMutation("job", true, ApiJob.of(job));
+		theUserService.updateOrg(me.getOrganization());
 		return job;
 	}
 
@@ -130,8 +133,10 @@ public class JobService {
 		}
 		if (job == null || job.getOrganization().getId() != me.getOrganization().getId())
 			throw new NoSuchElementException();
-		if (modify.test(job))
+		if (modify.test(job)) {
 			theJobRepo.save(job);
+			theUserService.updateOrg(me.getOrganization());
+		}
 		theNotificationSvc.publishMutation("job", true, ApiJob.of(job));
 		return job;
 	}
@@ -150,6 +155,7 @@ public class JobService {
 			throw new NoSuchElementException();
 		theJobRepo.delete(job);
 		theNotificationSvc.publishMutation("job", false, ApiJob.of(job));
+		theUserService.updateOrg(me.getOrganization());
 	}
 
 	public void jobUpdated(Job job) {
