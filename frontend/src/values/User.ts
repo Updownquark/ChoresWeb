@@ -4,6 +4,8 @@ interface User {
 	readonly name: string;
 	readonly god: boolean;
 	readonly globalAdmin: boolean;
+	readonly blocked: boolean;
+	readonly lastActive: Date;
 }
 
 export function usersEqual(user1: User, user2: User | null): boolean {

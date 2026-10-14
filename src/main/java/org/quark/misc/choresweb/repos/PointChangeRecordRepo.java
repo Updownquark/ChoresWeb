@@ -1,6 +1,7 @@
 package org.quark.misc.choresweb.repos;
 
 import java.time.Instant;
+import java.util.Collection;
 import java.util.List;
 import java.util.stream.Stream;
 
@@ -114,7 +115,7 @@ public interface PointChangeRecordRepo extends JpaRepository<PointChangeRecord, 
 	Instant getLastDone(@Param("org") Organization org, @Param("jobId") long jobId);
 
 	@Modifying
-	default void deleteForMember(Membership member) {
+	default void deleteWorkerHistory(Membership member) {
 		deleteByOrganizationAndWorker(member.getOrganization(), member.getMember());
 	}
 
@@ -123,4 +124,16 @@ public interface PointChangeRecordRepo extends JpaRepository<PointChangeRecord, 
 
 	@Modifying
 	void deleteByOrganization(Organization organization);
+
+	@Modifying
+	@Query("DELETE FROM PointChangeRecord pcr WHERE pcr.organization = :org AND pcr.worker IN :workers")
+	void deleteMultiWorkerHistory(@Param("org") Organization org, @Param("workers") Collection<User> workers);
+
+	@Modifying
+	@Query("DELETE FROM PointChangeRecord pcr WHERE pcr.organization.id IN :orgIds")
+	void deleteForOrgs(@Param("orgIds") Collection<Long> orgIds);
+
+	@Modifying
+	@Query("DELETE FROM PointChangeRecord pcr WHERE pcr.worker.id IN :userIds")
+	void deleteForUsers(@Param("userIds") Collection<Long> userIds);
 }

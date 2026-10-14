@@ -17,9 +17,9 @@ import lombok.Setter;
 
 @Entity
 @Table(name = "organization",
-	indexes = { //
-		@Index(name = "orgs_by_name", columnList = "name", unique = true)//
-	})
+indexes = { //
+	@Index(name = "orgs_by_name", columnList = "name", unique = true)//
+})
 public class Organization implements Named {
 	public static final int NAME_LENGTH = 200;
 
@@ -36,7 +36,6 @@ public class Organization implements Named {
 	@Column(name = "last_active", columnDefinition = "TIMESTAMP", nullable = true)
 	@DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss")
 	@Getter
-	@Setter
 	private Instant lastActive;
 
 	/** Hibernate constructor */
@@ -45,6 +44,11 @@ public class Organization implements Named {
 
 	public Organization(String name) {
 		this.name = name;
+		lastActive = Instant.now();
+	}
+
+	public void setLastActive(Instant lastActive) {
+		this.lastActive = lastActive;
 	}
 
 	@Override

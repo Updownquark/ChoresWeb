@@ -42,6 +42,9 @@
 			<column name="global_admin" type="BOOLEAN">
 				<constraints nullable="false"/>
 			</column>
+			<column name="blocked" type="BOOLEAN">
+				<constraints nullable="false"/>
+			</column>
 			<column name="last_active" type="TIMESTAMP" />
 		</createTable>
 		<createIndex indexName="users_by_email" tableName="app_user" unique="true">
@@ -131,8 +134,9 @@
 			<column name="job" />
 			<column name="worker" />
 		</createIndex>
-		<createIndex indexName="assignments_by_org" tableName="assignment">
+		<createIndex indexName="assignments_by_org_and_worker" tableName="assignment">
 			<column name="organization" />
+			<column name="worker" />
 		</createIndex>
 		
 		<createTable tableName="point_resource">

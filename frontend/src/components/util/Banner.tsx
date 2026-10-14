@@ -1,28 +1,33 @@
 import { Box, Dialog, DialogContent, DialogTitle, Grid, IconButton, MenuItem, Switch, TextField, Tooltip, Typography, useColorScheme } from "@mui/material";
-import React, { useState } from "react";
+import React, { useState, useSyncExternalStore } from "react";
 import SettingsMenu from "./SettingsMenu";
 import Membership from "../../values/Membership";
 import { globalLogoutTrigger } from "./CustomLogin";
 import EditIcon from "@mui/icons-material/Edit";
 import CheckIcon from '@mui/icons-material/Check';
 import { AxiosInstance } from "axios";
-import { debug } from "../../services/services";
+import { debug, syncService } from "../../services/services";
 import GodView from "../GodView";
+import User from "../../values/User";
 
 interface BannerProps{
 	title: string;
 	org: Membership | null;
+	me: User | null;
 	exitOrg: ()=>void;
 	api: AxiosInstance;
 }
 
-const Banner: React.FC<BannerProps> = ({title, org, exitOrg, api}) =>{
+const Banner: React.FC<BannerProps> = ({title, me, org, exitOrg, api}) =>{
 	const [showAbout, setShowAbout]=useState(false);
 	const [showProfile, setShowProfile]=useState(false);
 	const [editingUserName, setEditingUserName]=useState(false);
 	const [showGodView, setShowGodView] = useState(false);
 	const [editName, setEditName] = useState("");
 	const {mode, setMode, systemMode} = useColorScheme();
+	const status=useSyncExternalStore(//
+		listener=>syncService.onConnectionStatusChange(listener),//
+		()=>syncService.getConnectionStatus());
 
 	const activeMode = mode==="system" ? systemMode : mode;
 
@@ -39,6 +44,22 @@ const Banner: React.FC<BannerProps> = ({title, org, exitOrg, api}) =>{
 		});
 		setEditingUserName(false);
 	}
+	
+	let statusDotColor: string;
+	switch(status.status){
+		case "success":
+			statusDotColor="green";
+			break;
+		case "attempt":
+			statusDotColor="orange";
+			break;
+		case "failed":
+			statusDotColor="red";
+			break;
+		default:
+			statusDotColor="gray";
+			break;
+	}
 
 	return <Box sx={{
 		width: "100%",
@@ -52,35 +73,46 @@ const Banner: React.FC<BannerProps> = ({title, org, exitOrg, api}) =>{
 			}}>
 			{title}
 		</Typography>
-		<SettingsMenu close={(doClose)=>close=doClose}>
-			<MenuItem>
-				Display: Light
-				<Switch
-					checked={activeMode==="dark"}
-					onChange={e=>setMode(e.target.checked ? "dark" : "light")} />
-				Dark
-			</MenuItem>
-			{org
-				? <MenuItem onClick={()=>setShowProfile(true)}>View User Profile</MenuItem>
+		<Box sx={{display: "flex", flexDirection: "row", alignItems: "center"}}>
+			<Tooltip title={status.message}>
+				<div style= {{
+					width: 20,
+					height: 20,
+					borderRadius: "50%",
+					backgroundColor: statusDotColor
+				}} />
+			</Tooltip>
+
+			<SettingsMenu close={(doClose)=>close=doClose}>
+				<MenuItem>
+					Display: Light
+					<Switch
+						checked={activeMode==="dark"}
+						onChange={e=>setMode(e.target.checked ? "dark" : "light")} />
+					Dark
+				</MenuItem>
+				{org
+					? <MenuItem onClick={()=>setShowProfile(true)}>View User Profile</MenuItem>
+					: null
+				}
+				{me?.god
+				? <MenuItem onClick={()=>setShowGodView(true)}>God View</MenuItem>
 				: null
-			}
-			{org?.member.god
-			? <MenuItem onClick={()=>setShowGodView(true)}>God View</MenuItem>
-			: null
-			}
-			<MenuItem onClick={()=>{
-				setShowAbout(true);
-				close!();
-			}}>About Chore Champ</MenuItem>
-			{org ? <MenuItem onClick={()=>{
-				exitOrg();
-				close!();
-			}}>Exit {org!.organization!.name}</MenuItem> : null}
-			<MenuItem onClick={()=>{
-				if(globalLogoutTrigger) globalLogoutTrigger();
-				close!();
-			}}>Logout</MenuItem>
-		</SettingsMenu>
+				}
+				<MenuItem onClick={()=>{
+					setShowAbout(true);
+					close!();
+				}}>About Chore Champ</MenuItem>
+				{org ? <MenuItem onClick={()=>{
+					exitOrg();
+					close!();
+				}}>Exit {org!.organization!.name}</MenuItem> : null}
+				<MenuItem onClick={()=>{
+					if(globalLogoutTrigger) globalLogoutTrigger();
+					close!();
+				}}>Logout</MenuItem>
+			</SettingsMenu>
+		</Box>
 
 		<Dialog open={showAbout} onClose={()=>setShowAbout(false)}>
 			<DialogTitle>About Chore Champ</DialogTitle>
@@ -179,9 +211,23 @@ const Banner: React.FC<BannerProps> = ({title, org, exitOrg, api}) =>{
 			</DialogContent>
 		</Dialog>
 
-		<Dialog open={showGodView} onClose={()=>setShowGodView(false)}>
+		<Dialog
+			open={showGodView}
+			onClose={()=>setShowGodView(false)}
+			maxWidth={false}
+			slotProps={{
+				paper: {
+					sx: {
+						width: "85vw",
+						height: "85vh",
+						maxWidth: "none",
+						maxHeight: "none",
+					}
+				}
+			}}
+			>
 			<DialogTitle>God View</DialogTitle>
-			<GodView org={org} api={api}/>
+			<GodView me={me} api={api}/>
 		</Dialog>
 	</Box>
 };

@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useSyncExternalStore } from "react";
+import React, { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import ChoresTabParams from "./ChoresTabParams";
 import { assignmentService,  jobService, memberService } from "../services/services";
 import { Box, Button, Dialog, DialogTitle, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Typography } from "@mui/material";
@@ -16,8 +16,29 @@ const AssignmentsUI: React.FC<ChoresTabParams>=({api, org, visible})=>{
 	const [, assignmentsChanged] =useState(0);
 	const [isConfirmingSubmit, setConfirmingSubmit] = useState(false);
 	const [isConfirmingClear, setConfirmingClear] = useState(false);
+	const tableRef=useRef<HTMLDivElement>(null);
 	
 	useEffect(()=>assignmentService.onChange(()=>assignmentsChanged(prev=>prev+1)), []);
+
+	const printAssignments=()=>{
+		const element = tableRef.current;
+		if (!element) return;
+
+		// Use the @media print section of the global CSS to print just the table
+
+		// Add target class to this specific table container
+		element.classList.add('printable-target');
+		
+		// Activate the print state on the body
+		document.body.classList.add('is-printing-single-element');
+
+		// Open browser print dialog
+		window.print();
+
+		// Clean up immediately so everything returns to normal
+		document.body.classList.remove('is-printing-single-element');
+		element.classList.remove('printable-target');
+	}
 
 	return <>
 	<Dialog open={isConfirmingSubmit}>
@@ -68,56 +89,85 @@ const AssignmentsUI: React.FC<ChoresTabParams>=({api, org, visible})=>{
 			}}>Cancel</Button>
 		</Box>
 	</Dialog>
-	<TableContainer component={Paper} sx={{display : visible ? "" : "none"}}>
-		<Table sx={{width:"100%"}} size="small">
-			<TableHead>
-				<TableRow>
-					<TableCell>Job</TableCell>
-					<TableCell>Points</TableCell>
-					{workers.map(worker=>{
-						return <TableCell key={worker.member!.id} sx={{fontWeight: "bold"}}>{worker.name+" ("+worker.points+")"}</TableCell>;
-					})}
-				</TableRow>
-			</TableHead>
-			<TableBody>
-				{jobs.map(job=>{
-					const assignments=assignmentService.getJobAssignments(job.id);
-					return <TableRow key={job.id}>
-						<TableCell sx={{whiteSpace: "nowrap", width: "1%"}}>{job.name}</TableCell>
-						<TableCell sx={{whiteSpace: "nowrap", width: "1%"}}>{job.value}</TableCell>
+
+	<Box sx={{
+		display: visible ? "flex" : "none",
+		width: "100%",
+		flexDirection: "column",
+		alignContent: "stretch"}}>
+		<div ref={tableRef}>
+		<TableContainer component={Paper}>
+			<Table size="small"
+				sx={{
+					// Shrink the table by decreasing padding
+					"& .MuiTableCell-root": {
+						paddingTop: "1px",
+						paddingBottom: "0px",
+					}
+				}}>
+				<TableHead>
+					<TableRow>
+						<TableCell><h3>Job</h3></TableCell>
+						<TableCell><h3>Points</h3></TableCell>
 						{workers.map(worker=>{
-							const assn=assignments.get(worker.member!.id);
-							return <EditableTableCell
+							return <TableCell
 								key={worker.member!.id}
-								sx={{border: "1px solid black"}}
-								value={assn?.completed}
-								onSave={newV=>{
-									api.put("/api/assignments", {
-										orgId: org.organization!.id,
-										userId: worker.member!.id,
-										jobId: job.id,
-										completed: newV
-									});
-								}} renderer={v=>{
-									if(v)
-										return v.toString();
-									else
-										return "";
-								}} parser={parseInt} validator={newV=>{
-									if(newV!<0)
-										return "Completed amount must be >=0";
-									return null;
-								}} />
+								sx={{fontWeight: "bold", textAlign: "left", alignItems: "start"}}>
+									{worker.name+" ("+worker.points+")"}
+								</TableCell>;
 						})}
-					</TableRow>;
-				})}
-			</TableBody>
-		</Table>
-		<Box sx={{display: "flex", flexDirection: "row", alignItems: "center", justifyContent: "space-evenly"}}>
+					</TableRow>
+				</TableHead>
+				<TableBody>
+					{jobs.map(job=>{
+						const assignments=assignmentService.getJobAssignments(job.id);
+						return <TableRow key={job.id}>
+							<TableCell
+								sx={{whiteSpace: "nowrap", width: "1%"}}>
+									{job.name}
+								</TableCell>
+							<TableCell
+								sx={{whiteSpace: "nowrap", width: "1%"}}>{job.value}
+							</TableCell>
+							{workers.map(worker=>{
+								const assn=assignments.get(worker.member!.id);
+								return <EditableTableCell
+									key={worker.member!.id}
+									value={assn?.completed}
+									onSave={newV=>{
+										api.put("/api/assignments", {
+											orgId: org.organization!.id,
+											userId: worker.member!.id,
+											jobId: job.id,
+											completed: newV
+										});
+									}} renderer={v=>{
+										if(v)
+											return v.toString();
+										else
+											return "";
+									}} parser={parseInt} validator={newV=>{
+										if(newV!<0)
+											return "Completed amount must be >=0";
+										return null;
+									}} />
+							})}
+						</TableRow>;
+					})}
+				</TableBody>
+			</Table>
+		</TableContainer>
+		</div>
+		<Box sx={{
+			display: "flex",
+			flexDirection: "row",
+			alignItems: "center",
+			justifyContent: "space-evenly"}}>
 			<Button onClick={()=>setConfirmingSubmit(true)}>Submit</Button>
 			<Button onClick={()=>setConfirmingClear(true)}>Clear All</Button>
+			<Button onClick={()=>printAssignments()}>Print Assignments</Button>
 		</Box>
-	</TableContainer>
+	</Box>
 	</>;
 };
 

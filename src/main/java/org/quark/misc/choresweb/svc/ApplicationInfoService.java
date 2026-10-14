@@ -20,7 +20,7 @@ public class ApplicationInfoService {
 	private final ApplicationInfoRepo theRepo;
 	private final EntityMutationNotificationService theNotificationSvc;
 
-	private ApplicationInfo theSingleton;
+	private final ApplicationInfo theSingleton;
 
 	public ApplicationInfoService(ApplicationInfoRepo repo, EntityMutationNotificationService notificationSvc,
 		SyncService<User> syncService, ObjectMapper objectMapper) {
@@ -56,5 +56,6 @@ public class ApplicationInfoService {
 
 	public void applicationInfoChanged() {
 		theRepo.save(theSingleton);
+		theNotificationSvc.publishMutation("applicationInfo", true, theSingleton);
 	}
 }

@@ -145,7 +145,6 @@ public class WorkService {
 			theAssnRepo.save(assn);
 			theNotificationSvc.publishMutation("assignment", true, ApiAssignment.of(assn));
 		}
-		theUserService.updateOrg(me.getOrganization());
 		return assn;
 	}
 
@@ -175,7 +174,6 @@ public class WorkService {
 			return;
 		theAssnRepo.delete(assn);
 		theNotificationSvc.publishMutation("assignment", false, ApiAssignment.of(assn));
-		theUserService.updateOrg(me.getOrganization());
 	}
 
 	@Transactional
@@ -230,7 +228,6 @@ public class WorkService {
 		for (Assignment assn : assignments)
 			theNotificationSvc.publishMutation("assignment", false, ApiAssignment.of(assn));
 		theAssnRepo.deleteAll(assignments);
-		theUserService.updateOrg(me.getOrganization());
 	}
 
 	@Transactional

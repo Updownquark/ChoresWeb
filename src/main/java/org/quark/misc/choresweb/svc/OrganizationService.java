@@ -1,13 +1,7 @@
 package org.quark.misc.choresweb.svc;
 
 import java.time.Instant;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.NoSuchElementException;
-import java.util.Set;
+import java.util.*;
 
 import org.qommons.TimeUtils;
 import org.quark.misc.choresweb.api.ApiMembership;
@@ -83,10 +77,8 @@ public class OrganizationService {
 
 			@Override
 			public Collection<ApiOrg> queryEntities(List<Map<String, SyncDataFilter<ApiOrg>>> filters) {
-				return theOrgRepo.findAll().stream()//
-					.map(ApiOrg::of)//
-					.filter(org -> SyncDataSource.passesAny(org, filters))//
-					.toList();
+				// Don't spam God with all organization instances just so they can watch for changes
+				return Collections.emptyList();
 			}
 		});
 
@@ -222,7 +214,6 @@ public class OrganizationService {
 		Membership membership = new Membership(org, user);
 		membership.setName(user.getName());
 		membership.setManager(true);
-		membership.setLastActive(Instant.now());
 		theMembershipRepo.save(membership);
 		theNotificationSvc.publishMutation("organization", true, ApiOrg.of(org));
 		theNotificationSvc.publishMutation("membership", true, ApiMembership.of(membership));

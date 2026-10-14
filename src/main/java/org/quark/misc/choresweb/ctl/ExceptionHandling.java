@@ -21,7 +21,7 @@ public class ExceptionHandling {
 		ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, ex.getMessage());
 		problem.setTitle("Bad Request Input");
 		problem.setProperty("timestamp", System.currentTimeMillis());
-		ex.printStackTrace();
+		// ex.printStackTrace();
 		return problem;
 	}
 

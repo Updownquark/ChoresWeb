@@ -9,6 +9,8 @@ export interface EntityChangeEvent<E>{
 
 export type EntityChangeListener<E>=(events: EntityChangeEvent<E>)=>void;
 
+export type EntityFilter<E> = (entity: E)=>boolean;
+
 type Status = "disconnected" | "loading" | "connected" | "error";
 
 abstract class EntitySetService<E>{
@@ -17,6 +19,7 @@ abstract class EntitySetService<E>{
 	private readonly _entitiesById=new Map<string | number, E>();
 	private _immutableEntities: readonly E[]=[];
 	private _filters?: object;
+	private _entityFilter?: EntityFilter<E>
 	private _changeListener: (()=>void) | null = null;
 	private _theStatus: Status = "disconnected";
 	private readonly _listeners: EntityChangeListener<E> [] = [];
@@ -29,16 +32,17 @@ abstract class EntitySetService<E>{
 		return this._theStatus;
 	}
 
-	public async init(filters: object){
-		if(this._filters && Utils.deepEqual(this._filters, filters))
+	public async init(apiFilters: object, entityFilter?: EntityFilter<E>){
+		if(this._filters && Utils.deepEqual(this._filters, apiFilters))
 			return;
 
 		this.disconnect();
 
-		this._filters=filters;
+		this._filters=apiFilters;
+		this._entityFilter=entityFilter;
 		this._theStatus="loading";
 		console.log("Initializing "+this._tableName);
-		this._changeListener = syncService.subscribe<E>(this._tableName, filters, (event) => {
+		this._changeListener = syncService.subscribe<E>(this._tableName, apiFilters, (event) => {
 			switch (event.type) {
 				case "reset":
 					this._theStatus="connected";
@@ -67,6 +71,8 @@ abstract class EntitySetService<E>{
 	}
 
 	private handleAddOrUpdate(entity: E){
+		if(this._entityFilter && !this._entityFilter(entity))
+			return;
 		const id=this.getId(entity);
 		const prev=this._entitiesById.get(id);
 		if(prev){
@@ -95,6 +101,8 @@ abstract class EntitySetService<E>{
 	}
 
 	private handleRemove(entity: E){
+		if(this._entityFilter && !this._entityFilter(entity))
+			return;
 		const id=this.getId(entity);
 		const prev=this._entitiesById.get(id);
 		if(prev){
@@ -129,6 +137,8 @@ abstract class EntitySetService<E>{
 		const removed: E [] = [];
 		const changed: E [] = [];
 		for(const entity of entities){
+			if(this._entityFilter && !this._entityFilter(entity))
+				return;
 			const id=this.getId(entity);
 			const prev=this._entitiesById.get(id);
 			if(prev){

@@ -1,5 +1,6 @@
 import { AxiosInstance } from "axios";
 import TokenAuthService from "../util/TokenAuthService";
+import { debug } from "./services";
 
 interface AbstractSyncServerEvent {
 	type: string;
@@ -231,7 +232,8 @@ export default class SyncService {
 					this._subscriptions.forEach(set => {
 						set.forEach(sub => (sub.id = null));
 					});
-					if (payload.resume) {
+					if(!debug){ // No debug logging
+					} else if (payload.resume) {
 						console.log("Sync re-established", this._streamId.substring(0, 8));
 					} else if(myPrevEventId){
 						console.log("Sync outdated--reset required", this._streamId.substring(0, 8))

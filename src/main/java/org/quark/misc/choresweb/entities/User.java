@@ -43,6 +43,10 @@ public class User {
 	@Setter
 	private boolean globalAdmin;
 
+	@Getter
+	@Setter
+	private boolean blocked;
+
 	@Column(name = "last_active", columnDefinition = "TIMESTAMP", nullable = true)
 	@DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss")
 	@Getter
@@ -54,6 +58,9 @@ public class User {
 
 	public User(String email) {
 		this.email = email;
+		int at = email.indexOf('@');
+		name = at <= 0 ? email : email.substring(0, at);
+		// Don't initialize last active because this time is only for logins by the user
 	}
 
 	@Override

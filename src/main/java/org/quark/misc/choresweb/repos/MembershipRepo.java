@@ -1,6 +1,8 @@
 package org.quark.misc.choresweb.repos;
 
+import java.time.Instant;
 import java.util.List;
+import java.util.stream.Stream;
 
 import org.quark.misc.choresweb.entities.Membership;
 import org.quark.misc.choresweb.entities.Organization;
@@ -8,7 +10,10 @@ import org.quark.misc.choresweb.entities.User;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.jpa.repository.QueryHints;
 import org.springframework.data.repository.query.Param;
+
+import jakarta.persistence.QueryHint;
 
 public interface MembershipRepo extends JpaRepository<Membership, Long> {
 	@Query("FROM Membership WHERE member=:user")
@@ -28,4 +33,10 @@ public interface MembershipRepo extends JpaRepository<Membership, Long> {
 
 	@Modifying
 	void deleteByOrganization(Organization organization);
+
+	@Query("FROM Membership m JOIN FETCH m.organization o"//
+		+ " WHERE o.lastActive<:threshold"//
+		+ " ORDER BY o.id")
+	@QueryHints(@QueryHint(name = "jakarta.persistence.fetchSize", value = "100"))
+	Stream<Membership> getStaleMemberships(@Param("threshold") Instant threshold);
 }

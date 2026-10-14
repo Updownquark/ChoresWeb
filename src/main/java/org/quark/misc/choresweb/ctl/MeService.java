@@ -27,6 +27,6 @@ public class MeService {
 		if (dbUser != null)
 			return ApiUser.of(dbUser);
 		else
-			return new ApiUser(-1, email, false, false);
+			return new ApiUser(-1, email, false, false, false);
 	}
 }

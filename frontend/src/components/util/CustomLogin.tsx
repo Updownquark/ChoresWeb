@@ -1,6 +1,7 @@
 import React, { ReactNode, useEffect, useState } from "react";
 import TokenAuthService from "../../util/TokenAuthService";
 import axios from "axios";
+import { Box } from "@mui/material";
 
 interface AuthContextProps {
 	onAuthSuccess: (credentialString: string) => Promise<void>;
@@ -132,14 +133,15 @@ export const CustomLogin: React.FC<CustomLoginProps> = ({
 	};
 
 	return (
-		<div className="auth-wrapper">
-			<div
+		<Box
+			className="auth-wrapper"
+			sx={{display: "flex", flexDirection: "row", justifyContent: "center"}}>
+			<Box
 				className="login-container"
-				style={{ textAlign: "center", marginTop: "50px" }}
-			>
+				sx={{display: "flex", flexDirection: "column", alignItems: "center"}}>
 				{hasFailed && <div style={{ marginBottom: "20px" }}>{onFail}</div>}
 				{init(authController)}
-			</div>
-		</div>
+			</Box>
+		</Box>
 	);
 };

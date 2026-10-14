@@ -4,7 +4,7 @@ logging:
       springframework:
         '': INFO
         security: INFO
-        web: INFO
+        web: DEBUG
         beans:
           factory: INFO
       quark:
@@ -21,6 +21,9 @@ spring:
     url: jdbc:${DB_FLAVOR}://${DB_SERVER}/${DB_NAME}
     username: ${DB_USERNAME}
     password: ${DB_PASSWORD}
+    hikari:
+      connection-timeout: 60000
+      leak-detection-threshold: 65000
   jpa:
     open-in-view: false
     hibernate:

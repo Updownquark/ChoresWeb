@@ -17,6 +17,7 @@ import reactor.core.publisher.Mono;
 import reactor.core.publisher.Sinks;
 import tools.jackson.databind.ObjectMapper;
 
+@Slf4j
 public abstract class EntityMutationNotificationService {
 	public interface EntitySerializer<E> {
 		/**
@@ -27,7 +28,6 @@ public abstract class EntityMutationNotificationService {
 		String serialize(E entity);
 	}
 
-	@Slf4j
 	public static class ReflectiveSerializer<T> implements EntitySerializer<T> {
 		private final ObjectMapper theObjectMapper;
 
@@ -84,6 +84,8 @@ public abstract class EntityMutationNotificationService {
 	}
 
 	public <E> Mono<MessageId> publishMutation(String entityTypeName, boolean present, E entity) {
+		if (log.isDebugEnabled())
+			log.debug("Creating " + entityTypeName + " event");
 		EntitySerializerHolder<E> serializer = (EntitySerializerHolder<E>) theSerializers.get(entityTypeName);
 		if (serializer == null)
 			throw new IllegalArgumentException("No serializer installed for entity type " + entityTypeName);
@@ -112,12 +114,16 @@ public abstract class EntityMutationNotificationService {
 
 	@TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
 	private void publishInternalMutation(InternalDataMutationEvent event) {
+		if (log.isDebugEnabled())
+			log.debug("Post-commit " + event.entityType + " event");
 		event.messageId.tryEmitValue(publishGlobalMutation(event.entityType, event.present, event.entityJson));
 	}
 
 	protected abstract Mono<MessageId> publishGlobalMutation(String entityType, boolean present, String entityJson);
 
 	protected void publishLocalMutation(EntityMutationEvent event) {
+		if (log.isDebugEnabled())
+			log.debug("Publishing " + event.getEntityTypeName() + " event");
 		theLocalSink.emitNext(event, Sinks.EmitFailureHandler.busyLooping(Duration.ofSeconds(5)));
 	}
 }

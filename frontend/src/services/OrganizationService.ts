@@ -6,6 +6,7 @@ export default class OrganizationService extends EntitySetService<Membership>{
 	constructor(){
 		super("membership");
 	}
+
 	getId(org: Membership){
 		return org.organization!.id;
 	}

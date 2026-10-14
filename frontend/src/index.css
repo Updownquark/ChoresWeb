@@ -1,4 +1,4 @@
-/* 1. Global Reset & Material UI Token Matching */
+/* Global Reset & Material UI Token Matching */
 body {
   margin: 0;
   font-family: system-ui, "Segoe UI", Roboto, sans-serif;
@@ -16,7 +16,17 @@ body {
   box-sizing: border-box;
 }
 
-/* 2. Highlight Selected Table Rows Dynamically */
+/* Put lines between table cells in the row */
+table{
+  border-collapse: separate;
+}
+th, td {
+  border-left: 1px solid var(--mui-palette-divider);
+}
+/* Remove outer left border */
+th:first-child, td:first-child { border-left: none; }
+
+/* Highlight Selected Table Rows Dynamically */
 /* This automatically reads your primary accent colors directly from your theme.ts file */
 tr.selected,
 tr.selected td,
@@ -26,7 +36,7 @@ tr.selected th {
   border-bottom: 2px solid var(--mui-palette-primary-main) !important;
 }
 
-/* 3. Fix MUI Dropdown Select Option Colors in Dark Mode */
+/* Fix MUI Dropdown Select Option Colors in Dark Mode */
 /* Forces dropdown options to stay readable and adapt when the dark mode data attribute changes */
 [data-mui-color-scheme="dark"] .MuiMenuItem-root,
 [data-mui-color-scheme="dark"] .MuiButtonBase-root.MuiMenuItem-root {
@@ -38,7 +48,9 @@ tr.selected th {
   background-color: rgba(255, 255, 255, 0.08) !important;
 }
 
-/* 4. Smooth Responsive Global Typography */
+
+
+/* Smooth Responsive Global Typography */
 @media (max-width: 768px) {
   body {
     font-size: 16px;
@@ -49,5 +61,42 @@ tr.selected th {
   }
   h2 {
     font-size: 20px !important;
+  }
+}
+
+/* Hides all of the content except the target printable while printing a single component */
+@media print {
+  @page {
+    margin: 5mm;
+  }
+  /* This block only triggers when we explicitly turn on the state via JS */
+  body.is-printing-single-element * {
+    visibility: hidden !important;
+    color: black;
+  }
+  body.is-printing-single-element * tr {
+    padding-top: 0;
+    padding-bottom: 0;
+  }
+  
+  body.is-printing-single-element .printable-target,
+  body.is-printing-single-element .printable-target * {
+    visibility: visible !important;
+  }
+  
+  body.is-printing-single-element .printable-target {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+  }
+  /* Due to very complicated reasons explained to me by Gemini which I did not completely understand,
+   * This is needed to make my borders between table columns show up.
+   */
+  table th,td {
+    border-left-color: currentColor !important;
+  }
+  thead {
+    display: table-header-group;
   }
 }

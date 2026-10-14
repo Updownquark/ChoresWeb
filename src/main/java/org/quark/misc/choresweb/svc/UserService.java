@@ -6,6 +6,7 @@ import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -75,28 +76,67 @@ public class UserService {
 			@Override
 			public ValidationMaintainer<User> validateSubscription(User user, Map<String, SyncDataFilter<ApiUser>> filters)
 				throws UnsupportedOperationException {
-				// Only Global admins can query users, and they can see everything
-				if (!user.isGlobalAdmin())
-					throw new UnsupportedOperationException("You do not have permission to see user changes");
-				long userId = user.getId();
-				return event -> {
-					if (event.getEntity() instanceof User) {
-						User eventUser = (User) event.getEntity();
-						if (eventUser.getId() == userId) {
-							if (!event.isPresent() || !eventUser.isGlobalAdmin())
-								return ValidationChange.RevokeSubscription;
+				Long queryUserId = SyncDataSource.getConstantQueryBy(filters, "id");
+				if (queryUserId != null && queryUserId.longValue() == user.getId()) {
+					// Anybody can watch their own user, and that can't be taken away
+					return _ -> ValidationChange.Ignore;
+				} else { // Only God can query any other users, and they can see everything
+					if (!user.isGod())
+						throw new UnsupportedOperationException("You do not have permission to see user changes");
+					long userId = user.getId();
+					return event -> {
+						if (event.getEntity() instanceof User) {
+							User eventUser = (User) event.getEntity();
+							if (eventUser.getId() == userId) {
+								if (!event.isPresent() || !eventUser.isGod())
+									return ValidationChange.RevokeSubscription;
+							}
 						}
-					}
-					return ValidationChange.Ignore;
-				};
+						return ValidationChange.Ignore;
+					};
+				}
 			}
 
 			@Override
 			public List<ApiUser> queryEntities(List<Map<String, SyncDataFilter<ApiUser>>> filters) {
-				return QommonsUtils.mapAndFilter(theUserRepo.findAll(), //
-					ApiUser::of, //
-					entity -> SyncDataSource.passesAny(entity, filters)//
-					);
+				// We're making a lot of assumptions here for performance:
+				// The filters have passed the validation above, so we know that either it's a user's query for their own filter,
+				// or they're God.
+				// God can query the full set of users from the god service if they wish, but we don't want to assume they want that
+				// and spam them with the full set of users as soon as they subscribe.
+				// So handle these cases in 3 cases:
+				// * If there are filters that are not trivial and not specific to ID, then we have no choice
+				// but to materialize all the entities and filter them
+				// * If there are by-ID filters, satisfy them with a batch call
+				// * Otherwise return empty
+				Set<Long> byId = new HashSet<>();
+				boolean hasGeneralFilter = false;
+				for (Map<String, SyncDataFilter<ApiUser>> filter : filters) {
+					if (filter.isEmpty())
+						continue;
+					else if (filter.size() == 1) {
+						Long id = SyncDataSource.getConstantQueryBy(filter, "id");
+						if (id != null) {
+							byId.add(id);
+							continue;
+						}
+					}
+					hasGeneralFilter = true;
+					break;
+				}
+
+				if (hasGeneralFilter) {
+					List<Map<String, SyncDataFilter<ApiUser>>> nonTrivialFilters = filters.stream()//
+						.filter(f -> !f.isEmpty())//
+						.toList();
+					return QommonsUtils.mapAndFilter(theUserRepo.findAll(), //
+						ApiUser::of, //
+						entity -> SyncDataSource.passesAny(entity, nonTrivialFilters)//
+						);
+				} else if (!byId.isEmpty())
+					return QommonsUtils.filterMap(theUserRepo.findAllById(byId), null, ApiUser::of);
+				else
+					return Collections.emptyList();
 			}
 		});
 	}
@@ -127,6 +167,8 @@ public class UserService {
 			return null;
 		User dbUser = getUserCreateIfConfigured(email);
 		if (dbUser != null) {
+			if (dbUser.isBlocked())
+				throw new NoSuchElementException("You do not have permission to access this service");
 			Instant now = Instant.now();
 			if (dbUser.getLastActive() == null || TimeUtils.between(dbUser.getLastActive(), now).getSeconds() >= 10) {
 				dbUser.setLastActive(now);
@@ -144,13 +186,21 @@ public class UserService {
 		return email;
 	}
 
+	public boolean isGodEternal(String email) {
+		return theGodList.contains(email.toLowerCase());
+	}
+
+	public Set<String> getGodList() {
+		return Collections.unmodifiableSet(theGodList);
+	}
+
 	@Transactional
 	public User getUserCreateIfConfigured(String email) {
 		if (theAppInfo.isOpenToWorld())
 			return getOrCreateUser(email);
 
 		User found = theUserRepo.getByEmail(email);
-		if (found == null && theGodList.contains(email.toLowerCase()))
+		if (found == null && isGodEternal(email))
 			return getOrCreateUser(email);
 		return found;
 	}
@@ -170,10 +220,11 @@ public class UserService {
 
 				try {
 					theUserRepo.save(found);
+					theNotificationSvc.publishMutation("user", true, ApiUser.of(found));
 				} catch (RuntimeException e) {
 					// Inserted by another call
+					found = null;
 				}
-				theNotificationSvc.publishMutation("user", true, ApiUser.of(found));
 			}
 		}
 		return found;
@@ -259,7 +310,6 @@ public class UserService {
 		name = ChoresWebUtils.getNewName(theMembershipRepo.getMembership(me.getOrganization()), 100, name);
 		membership.setName(name);
 		membership.setWorker(true);
-		me.setLastActive(Instant.now());
 		if (configure != null)
 			configure.accept(membership);
 		theMembershipRepo.saveAll(Arrays.asList(membership, me));
@@ -295,8 +345,7 @@ public class UserService {
 		}
 
 		if (changed) {
-			me.setLastActive(Instant.now());
-			theMembershipRepo.saveAll(Arrays.asList(member, me));
+			theMembershipRepo.save(member);
 			theNotificationSvc.publishMutation("membership", true, ApiMembership.of(me));
 			theNotificationSvc.publishMutation("membership", true, ApiMembership.of(member));
 			updateOrg(me.getOrganization());
@@ -313,11 +362,9 @@ public class UserService {
 			throw new UnsupportedOperationException("You do not have permission to remove members from this organization");
 		else if (me.getOrganization().getId() != target.getOrganization().getId())
 			throw new UnsupportedOperationException("You must sign in to the organization you want to manage as a manager");
-		thePointChangeRepo.deleteForMember(target);
-		theAssnRepo.deleteForMember(target);
+		thePointChangeRepo.deleteWorkerHistory(target);
+		theAssnRepo.deleteForWorker(target);
 		theMembershipRepo.delete(target);
-		me.setLastActive(Instant.now());
-		theMembershipRepo.save(me);
 		theNotificationSvc.publishMutation("membership", true, ApiMembership.of(me));
 		theNotificationSvc.publishMutation("membership", false, ApiMembership.of(target));
 		updateOrg(me.getOrganization());

@@ -5,15 +5,7 @@ import java.time.Instant;
 import org.qommons.Named;
 import org.springframework.format.annotation.DateTimeFormat;
 
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.Index;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.ManyToOne;
-import jakarta.persistence.Table;
+import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -64,7 +56,6 @@ public class Membership implements Named {
 	@Column(name = "last_active", columnDefinition = "TIMESTAMP", nullable = true)
 	@DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss")
 	@Getter
-	@Setter
 	private Instant lastActive;
 
 	/** Hibernate constructor */
@@ -74,6 +65,11 @@ public class Membership implements Named {
 	public Membership(Organization org, User member) {
 		this.organization = org;
 		this.member = member;
+		lastActive = Instant.now();
+	}
+
+	public void setLastActive(Instant lastActive) {
+		this.lastActive = lastActive;
 	}
 
 	@Override

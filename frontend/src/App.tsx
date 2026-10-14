@@ -3,7 +3,7 @@ import { GoogleLogin, GoogleOAuthProvider } from "@react-oauth/google";
 import { CLIENT_ID } from "./config/backend";
 import { myTheme } from "./theme";
 import { StyledEngineProvider, ThemeProvider, useColorScheme } from "@mui/material/styles";
-import { Button, Container, CssBaseline, Typography, useMediaQuery } from "@mui/material";
+import { Box, Button, Container, CssBaseline, Typography, useMediaQuery } from "@mui/material";
 import User from "./values/User";
 import Membership from "./values/Membership";
 import OrganizationList from "./components/OrganizationList";
@@ -24,7 +24,6 @@ import {
 import { CustomLogin } from "./components/util/CustomLogin";
 import { LifeCycleStage } from "./services/LifeCycleService";
 import Banner from "./components/util/Banner";
-import Footer from "./components/util/Footer";
 
 const appName = "Chore Champ";
 
@@ -51,36 +50,43 @@ function ChoreChampApp() {
 
 	useEffect(() => {
 		if (org) {
-		} else if (!_me?.globalAdmin && orgs.length == 1) {
-			setOrg(orgs[0]);
-		} else {
-			const orgIdStr = sessionStorage.getItem("selectedOrg");
-			if (orgIdStr) {
-				const orgId = parseInt(orgIdStr);
-				for (const org of orgs) {
-					if (org.organization!.id == orgId) {
-						setOrg(org);
-						break;
-					}
+			//The organization may have changed.  Update it.
+			const newOrg=orgsService.getById(org.organization.id);
+			console.log("Updating org ", newOrg);
+			setOrg(newOrg);
+			return;
+		}
+
+		const orgIdStr = sessionStorage.getItem("selectedOrg");
+		if (orgIdStr) {
+			if("none" == orgIdStr) return;
+			const orgId = parseInt(orgIdStr);
+			for (const org of orgs) {
+				if (org.organization!.id == orgId) {
+					setOrg(org);
+					break;
 				}
 			}
 		}
+		if(orgs.length==1)
+			setOrg(orgs[0]);
 	}, [orgs]);
 
 	const setOrg = (org: Membership | null) => {
 		if (org && org.organization) {
-			sessionStorage.setItem("selectedOrg", org.organization!.id.toString());
+			const orgId=org.organization!.id;
+			sessionStorage.setItem("selectedOrg", orgId.toString());
 			document.title = appName + ": " + org.organization!.name;
-			const filters = { organization: org.organization!.id };
+			const filters = { organization: orgId };
 			jobService.init(filters);
-			memberService.init(filters);
+			memberService.init(filters, m=>m.organization.id==orgId);
 			assignmentService.init(filters);
 			resourcesService.init(filters);
 			historyService.setOrg(org.organization!.id);
 			if (!debug && lifeCycle.getStage() == LifeCycleStage.PreInit) lifeCycle.start();
 		} else {
 			document.title = appName;
-			sessionStorage.removeItem("selectedOrg");
+			sessionStorage.setItem("selectedOrg", "none");
 			jobService.disconnect();
 			memberService.disconnect();
 			assignmentService.disconnect();
@@ -109,7 +115,8 @@ function ChoreChampApp() {
 
 	const fetchOrgs = async () => {
 		try {
-			orgsService.init({ member: _me!.id });
+			const myUserId=_me!.id;
+			orgsService.init({ member: myUserId }, m=>m.member.id==myUserId);
 		} catch (error) {
 			console.error("API Error:", error);
 			setMe(null);
@@ -131,6 +138,7 @@ function ChoreChampApp() {
 			<Container sx={{...layoutStyles}}>
 				<Banner
 					title="Loading..."
+					me={me}
 					org={org}
 					exitOrg={exitOrg}
 					api={api}
@@ -143,6 +151,7 @@ function ChoreChampApp() {
 			<Container sx={{...layoutStyles}}>
 				<Banner
 					title="Chore Champ Unavailable"
+					me={me}
 					org={org}
 					exitOrg={exitOrg}
 					api={api}
@@ -155,12 +164,12 @@ function ChoreChampApp() {
 			<Container sx={{...layoutStyles}}>
 				<Banner
 					title="Unrecognized User"
+					me={me}
 					org={org}
 					exitOrg={exitOrg}
 					api={api}
 				/>
 				You need to be added to an organization by an organization admin to access this application.
-				<Footer />
 			</Container>
 		);
 	} else if (org) {
@@ -168,6 +177,7 @@ function ChoreChampApp() {
 			<Container sx={{...layoutStyles}}>
 				<Banner
 					title="Chore Champ"
+					me={me}
 					org={org}
 					exitOrg={exitOrg}
 					api={api}
@@ -176,7 +186,6 @@ function ChoreChampApp() {
 					org={org}
 					api={api}
 				/>
-				<Footer />
 			</Container>
 		);
 	} else if (me.globalAdmin) {
@@ -184,6 +193,7 @@ function ChoreChampApp() {
 			<Container sx={{...layoutStyles}}>
 				<Banner
 					title="Select the Organization to View"
+					me={me}
 					org={org}
 					exitOrg={exitOrg}
 					api={api}
@@ -191,9 +201,7 @@ function ChoreChampApp() {
 				{orgs ? (
 					<OrganizationList
 						orgs={orgs}
-						setOrg={orgId => {
-							api.get<Membership>("/api/orgs/" + orgId).then(response => setOrg(response.data));
-						}}
+						setOrg={orgId => setOrg(orgsService.getById(orgId))}
 					/>
 				) : null}
 				<Button
@@ -202,7 +210,6 @@ function ChoreChampApp() {
 					}}>
 					Create Organization
 				</Button>
-				<Footer />
 			</Container>
 		);
 	} else if (orgs == null || orgs.length == 0) {
@@ -210,12 +217,12 @@ function ChoreChampApp() {
 			<Container sx={{...layoutStyles}}>
 				<Banner
 					title="No Organization Memberships"
+					me={me}
 					org={org}
 					exitOrg={exitOrg}
 					api={api}
 				/>
 				You need to be added to an organization by an organization admin to access this application.
-				<Footer />
 			</Container>
 		);
 	} else {
@@ -223,17 +230,15 @@ function ChoreChampApp() {
 			<Container sx={{...layoutStyles}}>
 				<Banner
 					title="Select the Organization to View"
+					me={me}
 					org={org}
 					exitOrg={exitOrg}
 					api={api}
 				/>
 				<OrganizationList
 					orgs={orgs}
-					setOrg={orgId => {
-						api.get<Membership>("/api/orgs/" + orgId).then(response => setOrg(response.data));
-					}}
+					setOrg={orgId => setOrg(orgsService.getById(orgId))}
 				/>
-				<Footer />
 			</Container>
 		);
 	}
@@ -248,21 +253,25 @@ function App() {
 					<CustomLogin
 						authService={authService}
 						init={({ onAuthSuccess, onAuthError, onLogout }) => (
-							<div style={{ textAlign: "center", marginTop: "50px" }}>
+							<Box sx={{
+								display: "flex",
+								flexDirection: "column",
+								alignItems: "center",
+								whiteSpace: "nowrap",
+								textAlign: "center",
+								width: "1%" }}>
 								<h1>Chore Champ Login</h1>
 								<GoogleLogin
-									onSuccess={response => {
+										onSuccess={response => {
 										if (response.credential) onAuthSuccess(response.credential);
 										else onAuthError("No credential payload found");
 									}}
 									onError={() => onAuthError("Authentication failed")}
 									useOneTap
 								/>
-							</div>
+							</Box>
 						)}
-						onFail={
-							<h1>Chore Champ Login</h1>
-						}>
+						onFail={<></>}>
 						<ChoreChampApp />
 					</CustomLogin>
 				</GoogleOAuthProvider>

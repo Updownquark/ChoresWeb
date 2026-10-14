@@ -1,5 +1,6 @@
 package org.quark.misc.choresweb.repos;
 
+import java.util.Collection;
 import java.util.List;
 
 import org.quark.misc.choresweb.entities.Organization;
@@ -21,5 +22,9 @@ public interface PointResourceRepo extends JpaRepository<PointResource, Long> {
 	@Modifying
 	void deleteByOrganization(Organization organization);
 
-	public boolean existsByOrganizationIdAndName(long orgId, String name);
+	boolean existsByOrganizationIdAndName(long orgId, String name);
+
+	@Modifying
+	@Query("DELETE FROM PointResource rsrc WHERE rsrc.organization.id IN :orgIds")
+	void deleteForOrgs(@Param("orgIds") Collection<Long> orgIds);
 }

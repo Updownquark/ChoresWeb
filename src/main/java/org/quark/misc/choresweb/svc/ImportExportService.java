@@ -183,9 +183,6 @@ public class ImportExportService {
 	@Transactional
 	public void importData(Membership me, ExSupplier<InputStream, IOException> file) {
 		Organization org = me.getOrganization();
-		me.setLastActive(Instant.now());
-		theMembershipRepo.save(me);
-		theUserSvc.memberUpdated(me);
 		InMemoryFileSystem baseFS = new InMemoryFileSystem();
 		BetterFile zipFile = baseFS.at("/file.zip");
 		try {
@@ -401,6 +398,7 @@ public class ImportExportService {
 					if (newPCRs.size() >= 100) {
 						// Don't spam the notification service with history updates
 						theHistoryRepo.saveAll(newPCRs);
+						theEntityManager.flush();
 						theEntityManager.clear();
 						newPCRs.clear();
 					}
@@ -415,6 +413,7 @@ public class ImportExportService {
 			if (!newPCRs.isEmpty()) {
 				// Don't spam the notification service with history updates
 				theHistoryRepo.saveAll(newPCRs);
+				theEntityManager.flush();
 				theEntityManager.clear();
 				newPCRs.clear();
 			}
@@ -446,7 +445,7 @@ public class ImportExportService {
 					if (assn == null) {
 						assn = new Assignment(job, worker.getMember());
 						assn.setCompleted(line.getValue3());
-						assn.setNotes(line.get(4, String.class));
+						assn.setNotes(line.get(3, String.class));
 						newAssns.add(assn);
 					} else
 						preExisting++;

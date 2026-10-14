@@ -1,5 +1,6 @@
 package org.quark.misc.choresweb.repos;
 
+import java.util.Collection;
 import java.util.List;
 
 import org.quark.misc.choresweb.entities.Assignment;
@@ -19,7 +20,7 @@ public interface AssignmentRepo extends JpaRepository<Assignment, Long> {
 	List<Assignment> getByOrganizationId(long orgId);
 
 	@Modifying
-	default void deleteForMember(@Param("member") Membership member) {
+	default void deleteForWorker(@Param("member") Membership member) {
 		deleteByOrganizationAndWorker(member.getOrganization(), member.getMember());
 	}
 
@@ -34,6 +35,18 @@ public interface AssignmentRepo extends JpaRepository<Assignment, Long> {
 	@Modifying
 	void deleteByOrganization(Organization organization);
 
+	@Modifying
+	@Query("DELETE FROM Assignment assn WHERE assn.organization = :org AND assn.worker IN :workers")
+	void deleteMultiWorkerAssignments(@Param("org") Organization org, @Param("workers") Collection<User> workers);
+
 	@Query("FROM Assignment assn2 WHERE assn2.job=:job AND assn2.worker=:worker")
 	Assignment getByJobAndWorker(@Param("job") Job job, @Param("worker") User worker);
+
+	@Modifying
+	@Query("DELETE FROM Assignment assn WHERE assn.organization.id IN :orgIds")
+	void deleteForOrgs(@Param("orgIds") Collection<Long> orgIds);
+
+	@Modifying
+	@Query("DELETE FROM Assignment assn WHERE assn.worker.id IN :userIds")
+	void deleteForUsers(@Param("userIds") Collection<Long> userIds);
 }

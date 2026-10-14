@@ -9,6 +9,7 @@ import PointHistoryService from "./PointHistoryService";
 import TokenAuthService from "../util/TokenAuthService";
 import SyncService from "./SyncService";
 import OrganizationService from "./OrganizationService";
+import GodService from "./GodService";
 
 var d: boolean=false;
 switch(typeof CHORES_DEBUG){
@@ -36,3 +37,4 @@ export const memberService=new MemberService();
 export const assignmentService=new AssignmentService();
 export const resourcesService=new ResourceService();
 export const historyService=new PointHistoryService(api);
+export const godService=new GodService(api);
