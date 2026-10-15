@@ -1,5 +1,4 @@
 import React, { useEffect, useState } from "react";
-import Membership from "../values/Membership";
 import { AxiosInstance } from "axios";
 import { debug, godService, lifeCycle, syncService } from "../services/services";
 import User from "../values/User";
@@ -293,11 +292,12 @@ const GodView: React.FC<GodViewParams> = ({ me, api }) => {
         "Block", "Unblock",
         "Grant Creator", "Revoke Creator",
         "Grant God", "Revoke God"];
+    /* I had tooltips on each combo box item, but they got in the way of selecting them
     const userModDescrips=[
         "Blocked users cannot access the application at all",
         "Creators can create their own organizations",
         "God users can access this view to manage users and the application in general"
-    ]
+    ] */
 
     const modifyUsers=(mod: number)=>{
         const body: BulkUserMod={}

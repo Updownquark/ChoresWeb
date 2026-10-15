@@ -207,7 +207,7 @@ const JobsUI: React.FC<ChoresTabParams> = ({api, org, visible})=>{
 						const cellStyle= {backgroundColor: editing ? "lightblue" : ""};
 						return <TableRow
 							key={job.id}
-							className={editing ? "selected" : null}
+							className={editing ? "selected" : undefined}
 							onClick={e=>{
 								if(e.ctrlKey && editJob?.id==job.id)
 									setEditJob(null);
