@@ -118,7 +118,7 @@ export function hash(arr: readonly any[]): string {
 	h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 16), 3266489909);
 	h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 16), 3266489909);
 
-	const pad = n => (n >>> 0).toString(16).padStart(8, "0");
+	const pad = (n: number) => (n >>> 0).toString(16).padStart(8, "0");
 
 	return pad(h1) + pad(h2) + pad(h1 ^ h2) + pad((h1 + h2) >>> 0);
 }
