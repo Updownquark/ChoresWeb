@@ -62,6 +62,6 @@ chores:
     refreshTokenExpiry: ${REFRESH_TOKEN_EXPIRY}
     clientId: 823804539715-mb7lamcmkpoihnt297fevkrf1h3sgi1f.apps.googleusercontent.com
     secret: ${CHORES_JWT_SECRET}
-  godList: ${CHORES_GOD_LIST)
+  godList: ${CHORES_GOD_LIST}
   sync:
     cacheTimeout: 20s
