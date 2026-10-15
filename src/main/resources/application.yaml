@@ -4,13 +4,13 @@ logging:
       springframework:
         '': INFO
         security: INFO
-        web: ${SPRING_WEB_DEBUG}:INFO
+        web: ${SPRING_WEB_DEBUG:INFO}
         beans:
           factory: INFO
       quark:
         misc:
           choresweb:
-            sync: ${CHORES_SYNC_DEBUG}:DEBUG
+            sync: ${CHORES_SYNC_DEBUG:INFO}
 
 spring:
   config:
@@ -49,8 +49,8 @@ spring:
 quark:
   sync:
     scaling:
-      enabled: ${CHORES_SYNC_SCALING_ENABLED}:false
-      max-events: ${CHORES_SYNC_SCALING_MAX_EVENTS}:1000
+      enabled: ${CHORES_SYNC_SCALING_ENABLED:false}
+      max-events: ${CHORES_SYNC_SCALING_MAX_EVENTS:1000}
       stream-key: "choresDataStream"
 
 chores:
