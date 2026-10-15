@@ -1,4 +1,4 @@
-import { AxiosInstance } from "axios";
+import axios, { AxiosError, AxiosInstance } from "axios";
 import TokenAuthService from "../util/TokenAuthService";
 import { debug } from "./services";
 
@@ -189,6 +189,16 @@ export default class SyncService {
 		this._eventSource.onmessage = (event: MessageEvent) => this.processServerEvent(event);
 		this._eventSource.onopen=()=>this.setConnectionStatus(new ConnectionStatus("success", "Connected"));
 		this._eventSource.onerror = async (error) => {
+			if(axios.isAxiosError(error)){
+				const axiosError=error as AxiosError;
+				switch(axiosError.status){
+					case 404:
+					case 401:
+					case 500:
+						console.error("Sync connection could not be made: "+axiosError.status);
+						return;
+				}
+			}
 			console.warn("Sync connection broken or authorization rejected. Attempting to reconnect...");
 			this.disconnect();
 

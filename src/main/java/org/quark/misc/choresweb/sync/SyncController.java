@@ -2,6 +2,7 @@ package org.quark.misc.choresweb.sync;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.NoSuchElementException;
 
 import org.springframework.http.MediaType;
 import org.springframework.http.codec.ServerSentEvent;
@@ -36,6 +37,8 @@ public abstract class SyncController<U> {
 		@RequestParam(required = false) String subscriptions, //
 		@RequestParam(required = false) String lastEventId) {
 		U me = getMe(user);
+		if (me == null)
+			throw new NoSuchElementException("You do not have permission to use this service");
 		return theSyncService.initStream(me, lastEventId, subscriptions);
 	}
 

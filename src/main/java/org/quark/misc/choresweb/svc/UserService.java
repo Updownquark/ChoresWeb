@@ -33,6 +33,7 @@ import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import tools.jackson.databind.ObjectMapper;
 
@@ -63,18 +64,6 @@ public class UserService {
 		theAppInfo = appInfo.getApplicationInfo();
 
 		theGodList = new HashSet<>();
-
-		if (theGodListString == null)
-			log.error("God list is not configured");
-		else {
-			for (String god : theGodListString.split(",")) {
-				god = god.trim().toLowerCase();
-				if (!god.isEmpty())
-					theGodList.add(god);
-			}
-			if (theGodList.isEmpty())
-				log.error("God list is empty");
-		}
 
 		theNotificationSvc.installSerializer("user", ApiUser.class,
 			new EntityMutationNotificationService.ReflectiveSerializer<>(ApiUser.class, objectMapper));
@@ -145,6 +134,21 @@ public class UserService {
 					return Collections.emptyList();
 			}
 		});
+	}
+
+	@PostConstruct
+	private void init() {
+		if (theGodListString == null)
+			log.error("God list is not configured");
+		else {
+			for (String god : theGodListString.split(",")) {
+				god = god.trim().toLowerCase();
+				if (!god.isEmpty())
+					theGodList.add(god);
+			}
+			if (theGodList.isEmpty())
+				log.error("God list is empty");
+		}
 	}
 
 	@Transactional(readOnly = true)
