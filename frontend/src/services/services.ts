@@ -1,5 +1,4 @@
 import LifeCycleService from "./LifeCycleService";
-import DemoBackend from "./Backend";
 import { BACKEND_API_URL, CHORES_DEBUG } from "../config/backend";
 import JobService from "./JobService";
 import MemberService from "./MemberService";
@@ -29,7 +28,6 @@ export const authService=new TokenAuthService(BACKEND_API_URL);
 export const api=authService.getClient();
 
 export const lifeCycle = new LifeCycleService();
-export const backend = new DemoBackend(api);
 export const syncService=new SyncService(authService, api)
 export const orgsService=new OrganizationService();
 export const jobService=new JobService();
