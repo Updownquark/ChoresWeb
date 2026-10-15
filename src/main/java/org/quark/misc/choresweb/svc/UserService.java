@@ -333,6 +333,12 @@ public class UserService {
 				changed = true;
 			}
 		}
+		if (command.worker() != null) {
+			if (command.worker().booleanValue() != member.isWorker()) {
+				member.setWorker(command.worker());
+				changed = true;
+			}
+		}
 		boolean withName = member.getName() != null;
 		if (withName) {
 			if (member.getName().length() == 0)
@@ -343,7 +349,6 @@ public class UserService {
 
 		if (changed) {
 			theMembershipRepo.save(member);
-			theNotificationSvc.publishMutation("membership", true, ApiMembership.of(me));
 			theNotificationSvc.publishMutation("membership", true, ApiMembership.of(member));
 			updateOrg(me.getOrganization());
 		}
