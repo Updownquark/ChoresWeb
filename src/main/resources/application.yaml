@@ -4,13 +4,13 @@ logging:
       springframework:
         '': INFO
         security: INFO
-        web: DEBUG
+        web: ${SPRING_WEB_DEBUG}:INFO
         beans:
           factory: INFO
       quark:
         misc:
           choresweb:
-            sync: DEBUG
+            sync: ${CHORES_SYNC_DEBUG}:DEBUG
 
 spring:
   config:
@@ -49,8 +49,8 @@ spring:
 quark:
   sync:
     scaling:
-      enabled: false
-      max-events: 1000
+      enabled: ${CHORES_SYNC_SCALING_ENABLED}:false
+      max-events: ${CHORES_SYNC_SCALING_MAX_EVENTS}:1000
       stream-key: "choresDataStream"
 
 chores:
@@ -61,7 +61,7 @@ chores:
     accessTokenExpiry: ${ACCESS_TOKEN_EXPIRY}
     refreshTokenExpiry: ${REFRESH_TOKEN_EXPIRY}
     clientId: 823804539715-mb7lamcmkpoihnt297fevkrf1h3sgi1f.apps.googleusercontent.com
-    secret: ${CHORES_JWT_SECRET:a1d4d689be3962eb4012744d1eb32c834ffcb44f1e451cace4f2c6b18ccda7b3bb03a315b995b3d957b3a99af4f5e95c1571697ea030e1733bb9740e}
-  godList: ${DEV_APP_DATA}/godList.txt
+    secret: ${CHORES_JWT_SECRET}
+  godList: ${CHORES_GOD_LIST)
   sync:
     cacheTimeout: 20s

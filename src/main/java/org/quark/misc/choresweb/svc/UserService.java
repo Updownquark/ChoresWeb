@@ -1,9 +1,5 @@
 package org.quark.misc.choresweb.svc;
 
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStreamReader;
-import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.Collections;
@@ -16,7 +12,6 @@ import java.util.function.Consumer;
 
 import org.qommons.QommonsUtils;
 import org.qommons.TimeUtils;
-import org.qommons.io.NativeFileSource;
 import org.quark.misc.choresweb.api.ApiMembership;
 import org.quark.misc.choresweb.api.ApiOrg;
 import org.quark.misc.choresweb.api.ApiUser;
@@ -38,7 +33,6 @@ import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import tools.jackson.databind.ObjectMapper;
 
@@ -46,7 +40,7 @@ import tools.jackson.databind.ObjectMapper;
 @Slf4j
 public class UserService {
 	@Value("${chores.godList}")
-	private String theGodListPath;
+	private String theGodListString;
 	private final Set<String> theGodList;
 
 	private final UserRepo theUserRepo;
@@ -69,6 +63,18 @@ public class UserService {
 		theAppInfo = appInfo.getApplicationInfo();
 
 		theGodList = new HashSet<>();
+
+		if (theGodListString == null)
+			log.error("God list is not configured");
+		else {
+			for (String god : theGodListString.split(",")) {
+				god = god.trim().toLowerCase();
+				if (!god.isEmpty())
+					theGodList.add(god);
+			}
+			if (theGodList.isEmpty())
+				log.error("God list is empty");
+		}
 
 		theNotificationSvc.installSerializer("user", ApiUser.class,
 			new EntityMutationNotificationService.ReflectiveSerializer<>(ApiUser.class, objectMapper));
@@ -139,19 +145,6 @@ public class UserService {
 					return Collections.emptyList();
 			}
 		});
-	}
-
-	@PostConstruct
-	private void init() {
-		// Using the BetterFile API to resolve user-relative paths (~)
-		try (BufferedReader in = new BufferedReader(
-			new InputStreamReader(new NativeFileSource().at(theGodListPath).read(), StandardCharsets.UTF_8))) {
-			String email = in.readLine().trim().toLowerCase();
-			if (!email.isEmpty())
-				theGodList.add(email);
-		} catch (IOException e) {
-			log.error("Could not load white list--org creation will be impossible", e);
-		}
 	}
 
 	@Transactional(readOnly = true)
