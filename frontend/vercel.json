@@ -2,7 +2,7 @@
     "rewrites": [
         {
             "source": "/api/:path*",
-            "destination": "https://choresweb-production.up.railway.app"
+            "destination": "https://choresweb-production.up.railway.app/api/:path*"
         }
     ]
 }
