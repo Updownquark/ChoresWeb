@@ -78,11 +78,15 @@ public class AuthController {
 		try {
 			String userEmail = authService.validateRefreshToken(refreshToken);
 			String newAccessToken = authService.generateToken(userEmail, authService.getAccessTokenExpiry());
+			// Generate a new refresh token
+			refreshToken = authService.generateToken(userEmail, authService.getRefreshTokenExpiry());
 
 			Map<String, String> response = new HashMap<>();
 			response.put("accessToken", newAccessToken);
 
-			return ResponseEntity.ok(response);
+			return ResponseEntity.ok()//
+				.header(HttpHeaders.SET_COOKIE, getRefreshCookie(refreshToken, authService.getRefreshTokenExpiry()))//
+				.body(response);
 		} catch (SecurityException e) {
 			return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(e.getMessage());
 		}
@@ -102,7 +106,7 @@ public class AuthController {
 			.secure(true)//
 			.path("/api/auth/refresh")//
 			.maxAge(ageMs / 1000)//
-			.sameSite("Strict")//
+			.sameSite("None")//
 			.build()//
 			.toString();
 	}
