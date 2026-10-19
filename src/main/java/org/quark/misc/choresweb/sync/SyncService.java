@@ -22,6 +22,8 @@ import org.quark.misc.choresweb.sync.SyncDataSource.SyncDataFilter;
 import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.stereotype.Service;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
 import lombok.extern.slf4j.Slf4j;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -361,6 +363,20 @@ public class SyncService<U> {
 		}
 
 		return subscriptionIds;
+	}
+
+	public boolean isDebugLogging() {
+		return log.isDebugEnabled();
+	}
+
+	public void setDebugLogging(boolean debug) {
+		try {
+			if (log.isDebugEnabled() != debug)
+				((Logger) log).setLevel(debug ? Level.DEBUG : Level.INFO);
+		} catch (ClassCastException e) {
+			throw new UnsupportedOperationException(
+				"Unrecognized logging implementation, cannot change log level: " + log.getClass().getName());
+		}
 	}
 
 	private <T> SyncDataEvent<U, T> parseEvent(EntityMutationEvent mutationEvent) {

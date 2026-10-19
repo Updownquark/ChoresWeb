@@ -28,7 +28,7 @@ const getJobsSnapshot = jobService.getAll.bind(jobService); //Freelance work can
 const subscribeToResources = resourcesService.onChange.bind(resourcesService);
 const getResourcesSnapshot = resourcesService.getAll.bind(resourcesService);
 
-const JobsUI: React.FC<ChoresTabParams> = ({api, org, visible})=>{
+const WorkersUI: React.FC<ChoresTabParams> = ({api, org, visible})=>{
 	const getInitialEditWorker=(): Membership | null => {
 		const selectedWorkerStr=sessionStorage.getItem("selectedWorker");
 		if(selectedWorkerStr && memberService.getAll().length){
@@ -181,15 +181,21 @@ const JobsUI: React.FC<ChoresTabParams> = ({api, org, visible})=>{
 			notes: freeLanceNotes,
 		});
 	};
-	const usePoints=(rsrc: PointResource, points?: number)=>{
+	const getUserUsage=(createIfAbsent?: boolean): Map<number, number> | undefined => {
+		if(!editWorker)
+			return undefined;
 		let userUsage=pointUsage.get(editWorker!.member!.id);
-		if(!userUsage){
-			if(!points)
-				return;
+		if(!userUsage && createIfAbsent){
 			userUsage=new Map();
-			pointUsage.set(editWorker!.member!.id, userUsage);
+			pointUsage.set(editWorker!.member.id, userUsage);
 		}
-		if(!points){
+		return userUsage;
+	};
+	const usePoints=(rsrc: PointResource, points?: number)=>{
+		let userUsage=getUserUsage(!!points);
+		if(!userUsage){
+			return;
+		} else if(!points){
 			userUsage.delete(rsrc.id);
 			return;
 		}
@@ -202,7 +208,7 @@ const JobsUI: React.FC<ChoresTabParams> = ({api, org, visible})=>{
 		let points=editWorker.points;
 		if(points<0)
 			return true;
-		let userUsage=pointUsage.get(editWorker!.member!.id);
+		let userUsage=getUserUsage();
 		if(!userUsage?.size)
 			return false;
 		for(const usage of userUsage.values()){
@@ -217,7 +223,7 @@ const JobsUI: React.FC<ChoresTabParams> = ({api, org, visible})=>{
 			return "";
 
 		let points=editWorker.points;
-		let userUsage=pointUsage.get(editWorker!.member!.id);
+		let userUsage=getUserUsage();
 		if(!userUsage?.size)
 			return "Enter point or amount values for a resource to redeem points for";
 		for(const usage of userUsage.values())
@@ -230,9 +236,7 @@ const JobsUI: React.FC<ChoresTabParams> = ({api, org, visible})=>{
 			+ " afterward.";
 	}
 	const commitPointUsage=()=>{
-		if(!editWorker)
-			return;
-		let userUsage=pointUsage.get(editWorker!.member!.id);
+		let userUsage=getUserUsage();
 		if(!userUsage?.size)
 			return;
 		const usage:ApiResourceUsage[]=[];
@@ -248,6 +252,15 @@ const JobsUI: React.FC<ChoresTabParams> = ({api, org, visible})=>{
 			userId: editWorker!.member!.id,
 			usage: usage,
 		});
+		userUsage.clear();
+		setPointUsageRefresh(v=>v+1);
+	};
+	const resetPointUsage=()=>{
+		let userUsage=getUserUsage();
+		if(userUsage) {
+			userUsage.clear();
+			setPointUsageRefresh(v=>v+1);
+		}
 	};
 	
 	return <Box sx={{
@@ -569,19 +582,24 @@ const JobsUI: React.FC<ChoresTabParams> = ({api, org, visible})=>{
 					</TableContainer>
 					<Box sx={{
 						display: selectedTab==0 ? "flex" : "none",
-						flexDirection: "column",
+						flexDirection: "row",
 						width: "100%",
-						justifyItems: "center"}}>
+						justifyContent: "space-evenly"}}>
 						<Tooltip title={getPointUsageTooltip()}>
 							<span>
 								<Button
-									sx={{color: pointUsageNegative() ? "red" : "black"}}
-									disabled={!pointUsage.size}
+									sx={{color: pointUsageNegative() ? "red" : undefined}}
+									disabled={!getUserUsage()?.size}
 									onClick={commitPointUsage}>
 									Redeem Points
 								</Button>
 							</span>
 						</Tooltip>
+						<Button
+							disabled={!getUserUsage()?.size}
+							onClick={resetPointUsage}>
+							Reset Point Redemption
+						</Button>
 					</Box>
 					<PointHistoryView
 						org={org}
@@ -608,5 +626,4 @@ const JobsUI: React.FC<ChoresTabParams> = ({api, org, visible})=>{
 		</Box>
 	</Box>
 };
-
-export default JobsUI;
+export default WorkersUI;

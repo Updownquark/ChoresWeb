@@ -1,5 +1,5 @@
 import { Box, Dialog, DialogContent, DialogTitle, Grid, IconButton, MenuItem, Switch, TextField, Tooltip, Typography, useColorScheme } from "@mui/material";
-import React, { useState, useSyncExternalStore } from "react";
+import React, { useEffect, useState, useSyncExternalStore } from "react";
 import SettingsMenu from "./SettingsMenu";
 import Membership from "../../values/Membership";
 import { globalLogoutTrigger } from "./CustomLogin";
@@ -22,12 +22,24 @@ const Banner: React.FC<BannerProps> = ({title, me, org, exitOrg, api}) =>{
 	const [showAbout, setShowAbout]=useState(false);
 	const [showProfile, setShowProfile]=useState(false);
 	const [editingUserName, setEditingUserName]=useState(false);
-	const [showGodView, setShowGodView] = useState(false);
+	const [showGodView, _setShowGodView] = useState(false);
 	const [editName, setEditName] = useState("");
 	const {mode, setMode, systemMode} = useColorScheme();
 	const status=useSyncExternalStore(//
 		listener=>syncService.onConnectionStatusChange(listener),//
 		()=>syncService.getConnectionStatus());
+	useEffect(()=>{
+		if("true" == sessionStorage.getItem("god-view-open"))
+			_setShowGodView(true);
+	}, []);
+
+	const setShowGodView=(show: boolean)=>{
+		if(show)
+			sessionStorage.setItem("show-god-view", "true");
+		else
+			sessionStorage.removeItem("show-god-view");
+		_setShowGodView(show);
+	};
 
 	const activeMode = mode==="system" ? systemMode : mode;
 

@@ -41,7 +41,7 @@ class PointHistoryService{
 
 	public revertHistory(org: Membership, ...itemIds: number[]){
 		this._api.delete("/api/history", {
-			data: {
+			params: {
 				orgId: org.organization!.id,
 				items: itemIds,
 			}

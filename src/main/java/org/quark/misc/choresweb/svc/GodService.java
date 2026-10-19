@@ -2,8 +2,10 @@ package org.quark.misc.choresweb.svc;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import org.qommons.QommonsUtils;
@@ -11,6 +13,7 @@ import org.qommons.fn.FunctionUtils;
 import org.quark.misc.choresweb.api.ApiMembership;
 import org.quark.misc.choresweb.api.ApiOrg;
 import org.quark.misc.choresweb.api.ApiUser;
+import org.quark.misc.choresweb.api.GodData;
 import org.quark.misc.choresweb.entities.Membership;
 import org.quark.misc.choresweb.entities.Organization;
 import org.quark.misc.choresweb.entities.User;
@@ -22,6 +25,8 @@ import org.quark.misc.choresweb.repos.PointChangeRecordRepo;
 import org.quark.misc.choresweb.repos.PointResourceRepo;
 import org.quark.misc.choresweb.repos.UserRepo;
 import org.quark.misc.choresweb.sync.EntityMutationNotificationService;
+import org.quark.misc.choresweb.sync.SyncDataSource;
+import org.quark.misc.choresweb.sync.SyncService;
 import org.quark.misc.choresweb.util.BatchEntityOperator;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
@@ -29,6 +34,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import jakarta.persistence.EntityManager;
 import lombok.extern.slf4j.Slf4j;
+import tools.jackson.databind.ObjectMapper;
 
 @Service
 @Slf4j
@@ -43,6 +49,7 @@ public class GodService {
 	private final UserService theUserService;
 	private final ApplicationInfoService theAppInfoService;
 	private final EntityMutationNotificationService theNotificationService;
+	private final SyncService<User> theSyncService;
 	private final EntityManager theEntityManager;
 
 	private final BatchEntityOperator<User, Long> theUserOperator;
@@ -50,7 +57,8 @@ public class GodService {
 
 	public GodService(UserRepo userRepo, MembershipRepo membershipRepo, PointChangeRecordRepo historyRepo, OrgsRepo orgRepo,
 		JobRepo jobRepo, PointResourceRepo resourceRepo, AssignmentRepo assignmentRepo, UserService userService,
-		ApplicationInfoService appInfoService, EntityMutationNotificationService notificationService, EntityManager entityManager) {
+		ApplicationInfoService appInfoService, EntityMutationNotificationService notificationService, SyncService<User> syncService,
+		EntityManager entityManager, ObjectMapper objectMapper) {
 		theUserRepo = userRepo;
 		theMembershipRepo = membershipRepo;
 		theHistoryRepo = historyRepo;
@@ -61,11 +69,37 @@ public class GodService {
 		theUserService = userService;
 		theAppInfoService = appInfoService;
 		theNotificationService = notificationService;
+		theSyncService = syncService;
 		theEntityManager = entityManager;
 
 		theUserOperator = new BatchEntityOperator<>(theUserRepo, theEntityManager, User::getId,
 			user -> !theUserService.isGodEternal(user.getEmail()));
 		theOrgOperator = new BatchEntityOperator<>(theOrgRepo, theEntityManager, Organization::getId, FunctionUtils.TRUE);
+
+		theNotificationService.installSerializer("godData", GodData.class,
+			new EntityMutationNotificationService.ReflectiveSerializer<>(GodData.class, objectMapper));
+		theSyncService
+		.installDataSource(new SyncDataSource.AbstractReflectedDataSource<User, GodData>("godData", GodData.class, objectMapper) {
+			@Override
+			public ValidationMaintainer<User> validateSubscription(User user, Map<String, SyncDataFilter<GodData>> filters)
+				throws UnsupportedOperationException {
+				if (!user.isGod())
+					throw new UnsupportedOperationException("You do not have access to God data");
+				long userId = user.getId();
+				return event -> {
+					if (event.getEntity() instanceof ApiUser && userId == ((ApiUser) event.getEntity()).id()) {
+						if (!event.isPresent() || !((ApiUser) event.getEntity()).god())
+							return ValidationChange.RevokeSubscription;
+					}
+					return ValidationChange.Ignore;
+				};
+			}
+
+			@Override
+			public Collection<GodData> queryEntities(List<Map<String, SyncDataFilter<GodData>>> filters) {
+				return Collections.singletonList(new GodData(getSyncLogLevel()));
+			}
+		});
 	}
 
 	@Transactional
@@ -175,9 +209,8 @@ public class GodService {
 
 	@Transactional
 	public void deleteUsers(Specification<User> filter) {
-		//Protect God(s) eternal
-		Specification<User> targetQuery = filter
-			.and(Specification.not(UserRepo.emailIn(theUserService.getGodList())));
+		// Protect God(s) eternal
+		Specification<User> targetQuery = filter.and(Specification.not(UserRepo.emailIn(theUserService.getGodList())));
 
 		deleteUsers(theUserRepo.findAllIds(targetQuery));
 	}
@@ -186,5 +219,30 @@ public class GodService {
 	public void setOpenToWorld(boolean open) {
 		theAppInfoService.getApplicationInfo().setOpenToWorld(open);
 		theAppInfoService.applicationInfoChanged();
+	}
+
+	public int getSyncLogLevel() {
+		if (!theSyncService.isDebugLogging())
+			return 0;
+		else if (!theNotificationService.isDebugLogging())
+			return 1;
+		else
+			return 2;
+	}
+
+	// This doesn't actually do anything to the database, but the @Transactional tag is needed for the entity notification service to work
+	@Transactional
+	public void setSyncLogLevel(int logLevel) {
+		if (logLevel <= 0) {
+			theSyncService.setDebugLogging(false);
+			theNotificationService.setDebugLogging(false);
+		} else if (logLevel == 1) {
+			theSyncService.setDebugLogging(true);
+			theNotificationService.setDebugLogging(false);
+		} else {
+			theSyncService.setDebugLogging(true);
+			theNotificationService.setDebugLogging(false);
+		}
+		theNotificationService.publishMutation("godData", true, new GodData(logLevel));
 	}
 }

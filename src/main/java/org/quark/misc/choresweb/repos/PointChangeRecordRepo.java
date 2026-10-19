@@ -36,7 +36,8 @@ public interface PointChangeRecordRepo extends JpaRepository<PointChangeRecord, 
 		+ " AND pcr.worker.id=:workerId"//
 		+ " AND pcr.time>=:time"//
 		+ " ORDER BY pcr.id")
-	List<PointChangeRecord> getWorkerHistoryAfter(@Param("orgId") long orgId, @Param("workerId") long workerId, @Param("time") long time);
+	List<PointChangeRecord> getWorkerHistoryAfter(@Param("orgId") long orgId, @Param("workerId") long workerId,
+		@Param("time") Instant time);
 
 	@Query(SELECT_DTO //
 		+ " WHERE pcr.organization.id=:orgId")

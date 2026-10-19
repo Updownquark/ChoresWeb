@@ -297,4 +297,22 @@ public class GodViewController {
 
 		theGodService.setOpenToWorld(open);
 	}
+
+	@GetMapping("/sync-log-level")
+	public int getSyncLogLevel(@AuthenticationPrincipal Jwt user) {
+		User me = theUserService.getMe(user);
+		if (me == null || !me.isGod())
+			throw new UnsupportedOperationException("You do not have access to this service");
+
+		return theGodService.getSyncLogLevel();
+	}
+
+	@PutMapping("/sync-log-level/{level}")
+	public void setSyncLogLevel(@AuthenticationPrincipal Jwt user, @PathVariable int level) {
+		User me = theUserService.getMe(user);
+		if (me == null || !me.isGod())
+			throw new UnsupportedOperationException("You do not have access to this service");
+
+		theGodService.setSyncLogLevel(level);
+	}
 }

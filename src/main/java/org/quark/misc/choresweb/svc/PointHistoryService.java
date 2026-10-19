@@ -193,7 +193,7 @@ public class PointHistoryService {
 			// Rewrite point history to be consistent
 			List<PointChangeRecord> affected = theHistoryRepo.getWorkerHistoryAfter(//
 				me.getOrganization().getId(), //
-				member.member.getMember().getId(), member.changes.get(0).getTime().toEpochMilli());
+				member.member.getMember().getId(), member.changes.get(0).getTime());
 			Iterator<PointChangeRecord> deleted = member.changes.iterator();
 			PointChangeRecord currentDeleted = deleted.next();
 			int pointDelta = -currentDeleted.getPointChange();
@@ -210,7 +210,8 @@ public class PointHistoryService {
 				}
 				change.setBeforePoints(change.getBeforePoints() + pointDelta);
 			}
-			theHistoryRepo.saveAll(affected);
+			if (!affected.isEmpty())
+				theHistoryRepo.saveAll(affected);
 		}
 
 		publishChanges(history, true);

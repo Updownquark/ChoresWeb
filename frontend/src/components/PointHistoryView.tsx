@@ -1,4 +1,4 @@
-import { Box, IconButton, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow } from "@mui/material";
+import { Box, Button, Dialog, DialogContent, DialogTitle, IconButton, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Typography } from "@mui/material";
 import Membership from "../values/Membership";
 import { useEffect, useState } from "react";
 import ValidatedTextField from "./util/ValidatedTextField";
@@ -29,6 +29,8 @@ const PointHistoryView: React.FC<PointHistoryViewProps>=({org, userId, jobId, re
 	const [selectedItems]=useState(new Set<number>());
 	const [selectionAnchor, setSelectionAnchor]=useState(-1);
 	const [selectionRefresh, setSelectionRefresh]=useState(0);
+
+	const [confirmRevert, setConfirmRevert] = useState(false);
 
 	useEffect(()=>{
 		if(visible){
@@ -122,7 +124,7 @@ const PointHistoryView: React.FC<PointHistoryViewProps>=({org, userId, jobId, re
 		setSelectionRefresh(selectionRefresh+1);
 	}
 	const revertSelectedItems=()=>{
-		//TODO Confirm
+		setConfirmRevert(false);
 		historyService.revertHistory(org, ...selectedItems);
 	};
 
@@ -188,14 +190,26 @@ const PointHistoryView: React.FC<PointHistoryViewProps>=({org, userId, jobId, re
 		<Box sx={{display: "flex", flexDirection: "row"}}>
 			<IconButton
 				disabled={!selectedItems.size}
-				onClick={revertSelectedItems}>
+				onClick={()=>setConfirmRevert(true)}>
 				<DeleteIcon />
 			</IconButton>
 		</Box>
 		: null;
+
 	const showWorker=debug || !userId;
 	const showChangeSource=debug || !(jobId || resourceId);
 	const table=<TableContainer component={Paper}>
+		<Dialog open={confirmRevert}>
+			<DialogTitle>Revert History</DialogTitle>
+			<DialogContent>
+				<Typography>Revert {selectedItems.size} history item{selectedItems.size==1 ? "" : "s"}?</Typography>
+				<Typography>This cannot be undone</Typography>
+				<Box sx={{display: "flex", flexDirection: "row", width: "100%", justifyContent: "space-evenly"}}>
+					<Button onClick={revertSelectedItems}>OK</Button>
+					<Button onClick={()=>setConfirmRevert(false)}>Cancel</Button>
+				</Box>
+			</DialogContent>
+		</Dialog>
 		<Table size="small">
 			<TableHead>
 				<TableRow>
@@ -228,7 +242,10 @@ const PointHistoryView: React.FC<PointHistoryViewProps>=({org, userId, jobId, re
 					}
 					const changeSourceName=changeSource?.name ?? item.changeSourceName;
 					const workerName=showWorker ? memberService.getByUserId(item.workerId)?.name : null;
-					return <TableRow key={item.id} onClick={e=>selectionClick(item.id, e.ctrlKey, e.shiftKey)}>
+					return <TableRow
+						key={item.id}
+						className={selectedItems.has(item.id) ? "selected" : undefined}
+						onClick={e=>selectionClick(item.id, e.ctrlKey, e.shiftKey)}>
 						{debug ? <TableCell>{item.id}</TableCell> : null}
 						<TableCell>{myDateFormat.format(new Date(item.time))}</TableCell>
 						{showChangeSource ? <TableCell>{item.changeType}</TableCell> : null}

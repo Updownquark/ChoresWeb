@@ -84,9 +84,10 @@ const selectedUsers=new Set<number>();
 let hackNonClosureUsers: User [] = [];
 
 const GodView: React.FC<GodViewParams> = ({ me, api }) => {
-    const [open, setOpen] = useState(false);
 	const [orgCount, setOrgCount] = useState(0);
 	const [orgCountDirty, setOrgCountDirty] = useState(true);
+    const [open, setOpen] = useState(false);
+    const [syncLogLevel, setSyncLogLevel] = useState(0);
 	const [userQuery, setUserQuery] = useState<string | null>(null);
     const [prevTableState, setPrevTableState] = useState<UserTableState | null>(null);
     const [queryError, setQueryError] = useState<string | null>(null);
@@ -165,6 +166,7 @@ const GodView: React.FC<GodViewParams> = ({ me, api }) => {
 	useEffect(() => {
         godService.init(me!);
         setOpen(godService.app?.openToWorld ?? false);
+        setSyncLogLevel(godService.syncLogLevel);
         const godListener=godService.onChange({
             globalDataChanged: ()=>{
                 setGod(godService.god);
@@ -407,6 +409,18 @@ const GodView: React.FC<GodViewParams> = ({ me, api }) => {
                                     onChange={e=>setOpenToWorld(!open)} />
                             </Tooltip>
                         </Box>
+                    </Grid>
+
+                    <Grid size={10}>Sync Log Debug</Grid>
+                    <Grid size={2}>
+                        <Select
+                            variant="standard"
+                            value={godService.syncLogLevel}
+                            onChange={e=>godService.syncLogLevel=e.target.value}>
+                            <MenuItem value={0}>None</MenuItem>
+                            <MenuItem value={1}>Partial</MenuItem>
+                            <MenuItem value={2}>Full</MenuItem>
+                        </Select>
                     </Grid>
                 </Grid>
             </Box>

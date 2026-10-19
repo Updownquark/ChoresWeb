@@ -11,6 +11,8 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
 import lombok.extern.slf4j.Slf4j;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
@@ -125,5 +127,19 @@ public abstract class EntityMutationNotificationService {
 		if (log.isDebugEnabled())
 			log.debug("Publishing " + event.getEntityTypeName() + " event");
 		theLocalSink.emitNext(event, Sinks.EmitFailureHandler.busyLooping(Duration.ofSeconds(5)));
+	}
+
+	public boolean isDebugLogging() {
+		return log.isDebugEnabled();
+	}
+
+	public void setDebugLogging(boolean debug) {
+		try {
+			if (log.isDebugEnabled() != debug)
+				((Logger) log).setLevel(debug ? Level.DEBUG : Level.INFO);
+		} catch (ClassCastException e) {
+			throw new UnsupportedOperationException(
+				"Unrecognized logging implementation, cannot change log level: " + log.getClass().getName());
+		}
 	}
 }

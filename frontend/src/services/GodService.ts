@@ -1,8 +1,9 @@
 import { AxiosInstance } from "axios";
 import User from "../values/User";
-import { syncService } from "./services";
+import { lifeCycle, syncService } from "./services";
 import { ApplicationInfo } from "../values/ApplicationInfo";
 import { SyncDataEvent } from "./SyncService";
+import GodData from "../values/GodData";
 
 interface Listener{
     globalDataChanged: ()=>void;
@@ -26,6 +27,7 @@ export default class GodService{
     private _isGod: boolean=false;
     private _isInitialized: boolean=false;
     private _app: ApplicationInfo | undefined;
+    private _syncLogLevel: number=0;
     private _godListeners: (()=>void) | null = null;
     private _listeners=new Set<Listener>();
 
@@ -54,8 +56,15 @@ export default class GodService{
                     if(user.id==me.id)
                         this._setGod(user.god);
             }
-        })
+        });
         this._isInitialized=true;
+    }
+
+    private _updateSyncLogLevel(level: number){
+        if(this._syncLogLevel!=level){
+            this._syncLogLevel=level;
+            this._listeners.forEach(listener=>listener.globalDataChanged());
+        }
     }
 
     private _setApplicationInfo(app: ApplicationInfo){
@@ -83,10 +92,21 @@ export default class GodService{
                         this._listeners.forEach(listener=>listener.orgSetChanged());
                 }
             });
+            const godDataListener=syncService.subscribe<GodData>("godData", {}, event=>{
+                switch(event.type){
+                    case "reset":
+                        this._updateSyncLogLevel(event.entities[0].syncLogLevel);
+                        break;
+                    case "addOrUpdate":
+                        this._updateSyncLogLevel(event.entity.syncLogLevel);
+                        break;
+                }
+            });
             this._godListeners=()=>{
                 console.log("Deactivating God");
                 usersListener();
                 orgsListener();
+                godDataListener();
             }
         } else if(this._godListeners){
             this._godListeners();
@@ -101,6 +121,16 @@ export default class GodService{
 
     public get god(): boolean {
         return this._isGod;
+    }
+
+    public get syncLogLevel(): number {
+        return this._syncLogLevel;
+    }
+
+    public set syncLogLevel(level: number){
+        if(level!=this._syncLogLevel){
+            this._api.put("/api/god/sync-log-level/"+level);
+        }
     }
 
     public get orgCount(): Promise<number>{
