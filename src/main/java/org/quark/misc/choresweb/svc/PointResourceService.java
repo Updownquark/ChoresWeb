@@ -173,8 +173,8 @@ public class PointResourceService {
 		List<PointChangeRecord> history = new ArrayList<>(usage.size());
 		for (var rsrc : usage) {
 			PointResource resource = theResourceRepo.findById(rsrc.resourceId()).orElse(null);
-			if (resource == null || resource.getOrganization() != me.getOrganization())
-				throw new IllegalArgumentException("No such resource with ID " + rsrc.resourceId() + " in this organization");
+			if (resource == null || resource.getOrganization().getId() != me.getOrganization().getId())
+				throw new NoSuchElementException("No such resource with ID " + rsrc.resourceId() + " in this organization");
 			double amount = rsrc.points() * resource.getRate();
 			PointChangeRecord record = new PointChangeRecord(resource, worker, Instant.now(), amount);
 			record.setNotes(rsrc.notes());

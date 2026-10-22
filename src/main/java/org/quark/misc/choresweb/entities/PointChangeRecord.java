@@ -111,7 +111,7 @@ public class PointChangeRecord implements Comparable<PointChangeRecord> {
 		beforePoints = worker.getPoints();
 		this.quantity = quantity;
 		valueOrRate = resource.getRate();
-		pointChange = (int) Math.round(quantity * valueOrRate);
+		pointChange = -(int) Math.round(quantity / valueOrRate); // Default is usage, i.e. a decrease in points
 	}
 
 	@Override

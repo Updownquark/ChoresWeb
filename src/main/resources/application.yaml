@@ -4,13 +4,13 @@ logging:
       springframework:
         '': INFO
         security: INFO
-        web: ${SPRING_WEB_DEBUG:INFO}
+        web: ${SPRING_WEB_LOG_LEVEL:INFO}
         beans:
           factory: INFO
       quark:
         misc:
           choresweb:
-            sync: ${CHORES_SYNC_DEBUG:INFO}
+            sync: ${CHORES_SYNC_LOG_LEVEL:INFO}
 
 spring:
   config:
